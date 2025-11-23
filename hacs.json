@@ -1,7 +1,9 @@
 {
-  "name": "Switch Port Card",
-  "filename": "switch-port-card.js",
-  "content_in_root": false,
-  "render_readme": true
+  "name": "Switch Port Card Pro",
+  "description": "Advanced SNMP switch monitoring integration and card for Home Assistant",
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "switch-port-card-pro.zip",
+  "homeassistant": "2025.11.0"
   "ignore_brands": true
 }
