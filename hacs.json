@@ -3,4 +3,5 @@
   "filename": "switch-port-card.js",
   "content_in_root": false,
   "render_readme": true
+  "ignore_brands": true
 }
