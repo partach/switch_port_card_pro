@@ -9,5 +9,5 @@
   "requirements": ["pysnmp>=4.4.12"],
   "config_flow": true,
   "iot_class": "local_polling",
-  "integration_type": "hub",
+  "integration_type": "hub"
 }
