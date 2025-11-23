@@ -3,4 +3,5 @@
   "render_readme": true,
   "zip_release": false,
   "filename": "switch-port-card-pro.zip"
+  "codeowners": ["@partach"],
 }
