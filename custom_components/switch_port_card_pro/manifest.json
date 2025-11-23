@@ -1,9 +1,11 @@
 {
   "domain": "switch_port_card_pro",
   "name": "Switch Port Card Pro",
+  "version": "0.0.1", 
   "documentation": "https://github.com/partach/switch-port-card-pro/blob/main/README.md",
   "issue_tracker": "https://github.com/partach/switch-port-card-pro/issues",
   "dependencies": [],
+  "codeowners": ["@partach"],
   "requirements": ["pysnmp>=4.4.12"],
   "config_flow": true,
   "iot_class": "local_polling"
