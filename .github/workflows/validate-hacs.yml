@@ -1,0 +1,19 @@
+name: Validate
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Daily
+  workflow_dispatch:
+permissions: {}
+jobs:
+  hacs:
+    name: HACS Action
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: HACS Action
+        uses: "hacs/action@main"
+        with:
+          category: "plugin"
