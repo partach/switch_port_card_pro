@@ -4,53 +4,54 @@ class SwitchPortCardPro extends HTMLElement {
     this.attachShadow({ mode: "open" });
   }
 
+  static getConfigElement() {
+    return document.createElement("switch-port-card-pro-editor");
+  }
+
+  static getStubConfig() {
+    return {
+      type: "custom:switch-port-card-pro",
+      name: "Switch Ports",
+      entity_prefix: "sensor.mainswitch",
+      total_ports: 28,
+      sfp_start_port: 25,
+      show_total_bandwidth: true,
+      max_bandwidth_gbps: 100,
+      compact_mode: false,
+      even_ports_on_top: false,
+    };
+  }
+
   setConfig(config) {
-    if (!config.device && !config.entity) {
-      throw new Error("Please specify 'device' or 'entity'");
+    if (!config.entity_prefix) {
+      throw new Error("entity_prefix is required (e.g., 'sensor.mainswitch')");
     }
     this._config = config;
   }
 
   set hass(hass) {
     this._hass = hass;
-
-    // Find device entities from device or from one entity
-    let entities = new Set();
-    if (this._config.device) {
-      const deviceId = this._config.device;
-      Object.keys(hass.states).forEach((entityId) => {
-        const entity = hass.states[entityId];
-        if (entity.attributes?.device_id === deviceId) {
-          entities.add(entityId);
-        }
-      });
-    } else if (this._config.entity) {
-      const mainEntity = hass.states[this._config.entity];
-      if (!mainEntity) return;
-      const deviceId = mainEntity.attributes?.device_id;
-      if (deviceId) {
-        Object.keys(hass.states).forEach((entityId) => {
-          if (hass.states[entityId].attributes?.device_id === deviceId) {
-            entities.add(entityId);
-          }
-        });
-      } else {
-        // Fallback: assume same naming pattern
-        const prefix = this._config.entity.split("_total_bandwidth")[0];
-        Object.keys(hass.states).forEach((eid) => {
-          if (eid.startsWith(prefix)) entities.add(eid);
-        });
-      }
-    }
-
-    this.entities = Object.fromEntries(
-      Array.from(entities).map((eid) => [eid, hass.states[eid]])
-    );
+    
+    // Build entity map from prefix
+    this.entities = this._getEntitiesByPrefix();
 
     if (!this.content) {
       this._renderSkeleton();
     }
     this._render();
+  }
+
+  _getEntitiesByPrefix() {
+    const prefix = this._config.entity_prefix || "sensor.mainswitch";
+    const entities = {};
+
+    Object.keys(this._hass.states).forEach((eid) => {
+      if (eid.startsWith(prefix)) {
+        entities[eid] = this._hass.states[eid];
+      }
+    });
+
+    return entities;
   }
 
   _renderSkeleton() {
@@ -59,82 +60,101 @@ class SwitchPortCardPro extends HTMLElement {
         :host {
           display: block;
           padding: 16px;
-          background: var(--card-background-color, white);
+          background: var(--card-background-color, #1e1e1e);
           border-radius: 12px;
           font-family: var(--primary-font-family);
+          color: var(--primary-text-color, #fff);
         }
         .header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
           font-size: 1.4em;
-          font-weight: 500;
+          font-weight: 600;
         }
         .system-info {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
           gap: 12px;
           margin: 16px 0;
-          font-size: 0.9em;
+          font-size: 0.85em;
         }
         .info-item {
-          background: var(--secondary-background-color);
-          padding: 8px;
+          background: var(--secondary-background-color, #333);
+          padding: 8px 12px;
           border-radius: 8px;
           text-align: center;
+          border-left: 3px solid #2196f3;
         }
         .gauge {
           width: 100%;
-          height: 16px;
-          background: #e0e0e0;
-          border-radius: 8px;
+          height: 20px;
+          background: #424242;
+          border-radius: 10px;
           overflow: hidden;
           margin: 12px 0;
+          display: none;
         }
         .gauge-fill {
           height: 100%;
-          background: linear-gradient(90deg, #43a047, #ffb300, #e53935);
+          background: linear-gradient(90deg, #4caf50, #ffb300, #f44336);
           width: 0%;
-          transition: width 0.8s ease;
+          transition: width 0.5s ease;
+        }
+        .ports-section {
+          margin-top: 20px;
+        }
+        .ports-label {
+          font-size: 0.9em;
+          color: #999;
+          margin-bottom: 8px;
+          font-weight: 600;
         }
         .ports {
           display: grid;
           grid-template-columns: repeat(14, 1fr);
-          gap: 6px;
-          margin-top: 16px;
+          gap: 4px;
         }
         .port {
-          aspect-ratio: 1.8;
-          background: #ddd;
+          aspect-ratio: 2.2;
           border-radius: 6px;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          font-size: 0.75em;
-          font-weight: bold;
-          color: #333;
-          position: relative;
+          font-size: 0.7em;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+          border: 1px solid rgba(255,255,255,0.1);
         }
-        .port.up-10g    { background: #1b5e20; color: white; }
-        .port.up-5g     { background: #388e3c; color: white; }
-        .port.up-2_5g   { background: #66bb6a; color: black; }
-        .port.up-1g     { background: #a5d6a7; color: black; }
-        .port.up-100m   { background: #fff176; color: black; }
-        .port.up-10m    { background: #ffeb3b; color: black; }
-        .port.down      { background: #424242; color: #888; }
-        .port.sfp       { border: 2px solid #1976d2; }
-        .port-label {
-          position: absolute;
-          bottom: 2px;
-          font-size: 0.6em;
+        .port:hover {
+          transform: scale(1.05);
+        }
+        .port-num {
+          font-size: 0.8em;
           opacity: 0.9;
         }
+        .port-status {
+          font-size: 0.65em;
+          margin-top: 2px;
+        }
+        /* States */
+        .port.on-10g    { background: #0d47a1; color: #fff; }
+        .port.on-1g     { background: #1b5e20; color: #fff; }
+        .port.on-100m   { background: #f57f17; color: #fff; }
+        .port.on-10m    { background: #ff6f00; color: #fff; }
+        .port.on        { background: #616161; color: #fff; }
+        .port.off       { background: #303030; color: #666; opacity: 0.6; }
+        .port.sfp       { border: 2px solid #2196f3; }
+        
         .compact .ports { grid-template-columns: repeat(7, 1fr); }
         .compact .port { font-size: 0.65em; }
+        
         @media (max-width: 600px) {
           .ports { grid-template-columns: repeat(7, 1fr); }
+          .header { font-size: 1.2em; }
         }
       </style>
       <div class="card-content">
@@ -143,10 +163,15 @@ class SwitchPortCardPro extends HTMLElement {
           <span id="status"></span>
         </div>
         <div class="system-info" id="system-info"></div>
-        <div class="gauge" id="gauge" style="display:none">
+        <div class="gauge" id="gauge">
           <div class="gauge-fill" id="gauge-fill"></div>
         </div>
-        <div class="ports ${this._config.compact_mode ? 'compact' : ''}" id="ports"></div>
+        <div class="ports-section">
+          <div class="ports-label">COPPER PORTS</div>
+          <div class="ports" id="copper-ports"></div>
+          <div class="ports-label" style="margin-top:16px;">SFP+ PORTS</div>
+          <div class="ports" id="sfp-ports"></div>
+        </div>
       </div>
     `;
     this.content = true;
@@ -154,105 +179,109 @@ class SwitchPortCardPro extends HTMLElement {
 
   _render() {
     if (!this.entities || Object.keys(this.entities).length === 0) {
-      this.shadowRoot.querySelector(".card-content").innerHTML = "<p>No data found. Check device/entity.</p>";
+      this.shadowRoot.querySelector(".card-content").innerHTML = 
+        `<p style="color: #f44336;">No entities found. Check entity_prefix: ${this._config.entity_prefix}</p>`;
       return;
     }
 
-    const bandwidthEnt = Object.values(this.entities).find(e => 
-      e.attributes?.friendly_name?.toLowerCase().includes("bandwidth")
-    );
-    const cpuEnt = Object.values(this.entities).find(e => 
-      e.attributes?.friendly_name?.toLowerCase().includes("cpu")
-    );
-    const memEnt = Object.values(this.entities).find(e => 
-      e.attributes?.friendly_name?.toLowerCase().includes("memory")
-    );
-    const uptimeEnt = Object.values(this.entities).find(e => 
-      e.attributes?.friendly_name?.toLowerCase().includes("uptime")
-    );
-    const hostnameEnt = Object.values(this.entities).find(e => 
-      e.attributes?.friendly_name?.toLowerCase().includes("hostname")
-    );
+    // Find key entities
+    const bandwidth = this._findEntity("bandwidth");
+    const cpu = this._findEntity("cpu");
+    const memory = this._findEntity("memory");
+    const uptime = this._findEntity("uptime");
+    const hostname = this._findEntity("hostname");
 
     // Header
-    this.shadowRoot.getElementById("title").textContent = this._config.name || hostnameEnt?.state || "Switch";
-    this.shadow.getElementById("status").textContent = bandwidthEnt ? `${bandwidthEnt.state} Mbps` : "—";
+    this.shadowRoot.getElementById("title").textContent = 
+      this._config.name || hostname?.state || "Switch Ports";
+    this.shadowRoot.getElementById("status").textContent = 
+      bandwidth ? `${parseFloat(bandwidth.state).toFixed(1)} Mbps` : "—";
 
     // System info
-    const sysDiv = this.shadow.getElementById("system-info");
+    const sysDiv = this.shadowRoot.getElementById("system-info");
     sysDiv.innerHTML = `
-      ${cpuEnt ? `<div class="info-item">CPU<br><strong>${cpuEnt.state}%</strong></div>` : ''}
-      ${memEnt ? `<div class="info-item">RAM<br><strong>${memEnt.state}%</strong></div>` : ''}
-      ${uptimeEnt ? `<div class="info-item">Uptime<br><strong>${uptimeEnt.state} h</strong></div>` : ''}
+      ${cpu ? `<div class="info-item"><strong>${parseFloat(cpu.state).toFixed(0)}%</strong><br>CPU</div>` : ''}
+      ${memory ? `<div class="info-item"><strong>${parseFloat(memory.state).toFixed(0)}%</strong><br>Memory</div>` : ''}
+      ${uptime ? `<div class="info-item"><strong>${parseFloat(uptime.state).toFixed(1)}</strong><br>Uptime (h)</div>` : ''}
+      ${hostname ? `<div class="info-item"><strong>${hostname.state}</strong><br>Host</div>` : ''}
     `;
 
-    // Gauge
-    if (this._config.show_total_bandwidth !== false && bandwidthEnt) {
-      const gauge = this.shadow.getElementById("gauge");
-      const fill = this.shadow.getElementById("gauge-fill");
+    // Bandwidth gauge
+    if (this._config.show_total_bandwidth !== false && bandwidth) {
+      const gauge = this.shadowRoot.getElementById("gauge");
       gauge.style.display = "block";
-      const max = (this._config.max_bandwidth_gbps || 100) * 1000;
-      const percent = Math.min((parseFloat(bandwidthEnt.state) / max) * 100, 100);
-      fill.style.width = `${percent}%`;
+      const maxBps = (this._config.max_bandwidth_gbps || 100) * 1000;
+      const percent = Math.min((parseFloat(bandwidth.state) / maxBps) * 100, 100);
+      this.shadowRoot.getElementById("gauge-fill").style.width = `${percent}%`;
     }
 
-    // Ports
-    const portsDiv = this.shadow.getElementById("ports");
-    portsDiv.innerHTML = "";
+    // Render ports
+    this._renderPorts();
+  }
+
+  _renderPorts() {
     const totalPorts = this._config.total_ports || 28;
     const sfpStart = this._config.sfp_start_port || 25;
+    const copperDiv = this.shadowRoot.getElementById("copper-ports");
+    const sfpDiv = this.shadowRoot.getElementById("sfp-ports");
+
+    copperDiv.innerHTML = "";
+    sfpDiv.innerHTML = "";
 
     for (let i = 1; i <= totalPorts; i++) {
-      const portEnt = Object.values(this.entities).find(e => 
-        e.attributes?.friendly_name?.toLowerCase().includes(`port ${i}`)
-      );
-      const state = portEnt?.state || "unknown";
-      const isUp = state === "up";
-      const speed = portEnt?.attributes?.speed || "unknown";
+      const portEntity = this._findEntity(`port_${i}`);
+      const state = portEntity?.state || "unknown";
+      const description = portEntity?.attributes?.description || "";
+
+      // Determine speed from separate speed sensor
+      const speedEntity = this._findEntity(`port_speed_${i}`);
+      const speed = speedEntity?.state || "0";
+      const speedBps = parseInt(speed);
+
+      let speedClass = "on";
+      if (state === "off" || state === "down") {
+        speedClass = "off";
+      } else if (speedBps >= 10000000000) {
+        speedClass = "on-10g";
+      } else if (speedBps >= 1000000000) {
+        speedClass = "on-1g";
+      } else if (speedBps >= 100000000) {
+        speedClass = "on-100m";
+      } else if (speedBps >= 10000000) {
+        speedClass = "on-10m";
+      }
 
       const portDiv = document.createElement("div");
-      portDiv.className = `port ${isUp ? 'up-${speed}` : "down"} ${i >= sfpStart ? "sfp" : ""}`;
-
-      let speedLabel = "";
-      if (isUp) {
-        if (speed.includes("10G")) speedLabel = "10G";
-        else if (speed.includes("5G")) speedLabel = "5G";
-        else if (speed.includes("2.5G")) speedLabel = "2.5G";
-        else if (speed.includes("1G")) speedLabel = "1G";
-        else if (speed.includes("100")) speedLabel = "100M";
-        else if (speed.includes("10")) speedLabel = "10M";
-      }
-
+      portDiv.className = `port ${speedClass} ${i >= sfpStart ? "sfp" : ""}`;
+      portDiv.title = `Port ${i}\n${description || "No description"}\nState: ${state}`;
       portDiv.innerHTML = `
-        <div>${i}</div>
-        <div class="port-label">${isUp ? speedLabel : "DOWN"}</div>
+        <div class="port-num">${i}</div>
+        <div class="port-status">${state === "on" ? "✓" : "×"}</div>
       `;
-      portsDiv.appendChild(portDiv);
-    }
 
-    // Layout: even ports on top?
-    if (this._config.even_ports_on_top) {
-      const children = Array.from(portsDiv.children);
-      const reordered = [];
-      for (let i = 0; i < children.length / 2; i++) {
-        reordered.push(children[i*2 + 1] || children[i*2]);
-        reordered.push(children[i*2] || children[i*2 + 1]);
+      if (i < sfpStart) {
+        copperDiv.appendChild(portDiv);
+      } else {
+        sfpDiv.appendChild(portDiv);
       }
-      portsDiv.innerHTML = "";
-      reordered.forEach(c => portsDiv.appendChild(c));
     }
+  }
+
+  _findEntity(keyword) {
+    return Object.values(this.entities).find(e =>
+      e.attributes?.friendly_name?.toLowerCase().includes(keyword.toLowerCase()) ||
+      e.entity_id?.toLowerCase().includes(keyword.toLowerCase())
+    );
   }
 
   getCardSize() {
-    return this._config.compact_mode ? 4 : 7;
+    return this._config.compact_mode ? 4 : 6;
   }
 }
 
-customElements.define("switch-port-card-pro", SwitchPortCardPro);
-
-// ──────────────────────────────────────────────
-// Editor
-// ──────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// EDITOR
+// ─────────────────────────────────────────────
 class SwitchPortCardProEditor extends HTMLElement {
   setConfig(config) {
     this._config = { ...config };
@@ -266,42 +295,37 @@ class SwitchPortCardProEditor extends HTMLElement {
   _render() {
     if (!this._hass) return;
 
-    const devices = Object.keys(this._hass.devices);
-    const entities = Object.keys(this._hass.states);
+    const sensorEntities = Object.keys(this._hass.states)
+      .filter(e => e.startsWith("sensor."))
+      .sort();
 
     this.innerHTML = `
       <style>
-        .container { padding: 12px; }
+        .container { padding: 16px; font-family: var(--primary-font-family); }
         .row { margin: 12px 0; display: flex; align-items: center; gap: 12px; }
-        label { width: 160px; font-weight: 500; }
-        input, select { flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
-        .checkbox { display: flex; align-items: center; gap: 8px; }
+        label { min-width: 160px; font-weight: 500; }
+        input, select { flex: 1; max-width: 300px; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+        .checkbox { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+        .checkbox input { max-width: 20px; }
       </style>
       <div class="container">
         <div class="row">
           <label>Card Title</label>
-          <input type="text" data-key="name" value="${this._config.name || ''}">
+          <input type="text" data-key="name" value="${this._config.name || 'Switch Ports'}" placeholder="My Switch">
         </div>
 
         <div class="row">
-          <label>Device (Recommended)</label>
-          <select data-key="device">
-            <option value="">-- Select device --</option>
-            ${devices.map(id => `
-              <option value="${id}" ${id === this._config.device ? 'selected' : ''}>
-                ${this._hass.devices[id]?.name_by_user || this._hass.devices[id]?.name || id}
-              </option>
-            `).join('')}
-          </select>
-        </div>
-
-        <div class="row">
-          <label>Or pick one entity</label>
-          <select data-key="entity">
-            <option value="">-- Optional fallback --</option>
-            ${entities
+          <label>Entity Prefix</label>
+          <select data-key="entity_prefix">
+            <option value="">-- Select entity --</option>
+            ${sensorEntities
               .filter(e => e.includes("bandwidth") || e.includes("port_"))
-              .map(e => `<option value="${e}" ${e === this._config.entity ? 'selected' : ''}>${this._hass.states[e].attributes.friendly_name || e}</option>`)
+              .map(e => {
+                const base = e.split("_total_bandwidth")[0] || e.split("_port_")[0];
+                return `<option value="${base}" ${base === this._config.entity_prefix ? 'selected' : ''}>${base}</option>`;
+              })
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .map(v => `<option value="${v}" ${v === this._config.entity_prefix ? 'selected' : ''}>${v}</option>`)
               .join('')}
           </select>
         </div>
@@ -312,7 +336,7 @@ class SwitchPortCardProEditor extends HTMLElement {
         </div>
 
         <div class="row">
-          <label>First SFP+ Port</label>
+          <label>First SFP Port</label>
           <input type="number" min="1" max="128" data-key="sfp_start_port" value="${this._config.sfp_start_port || 25}">
         </div>
 
@@ -321,9 +345,9 @@ class SwitchPortCardProEditor extends HTMLElement {
           <label>Show Bandwidth Gauge</label>
         </div>
 
-        <div class="row" style="margin-left:180px;display:${this._config.show_total_bandwidth !== false ? 'flex' : 'none'}" id="maxbw">
+        <div class="row" id="bw-row" style="${this._config.show_total_bandwidth !== false ? '' : 'display:none;'}">
           <label>Max Bandwidth (Gbps)</label>
-          <input type="number" step="10" min="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps || 100}">
+          <input type="number" min="1" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps || 100}">
         </div>
 
         <div class="checkbox">
@@ -342,26 +366,27 @@ class SwitchPortCardProEditor extends HTMLElement {
       el.addEventListener("change", (e) => {
         const key = e.target.dataset.key;
         let value = e.target.value;
-        if (e.target.type === "checkbox") value = e.target.checked;
-        if (e.target.type === "number") value = parseInt(value) || 0;
 
-        const newConfig = { ...this._config, [key]: value };
-        if (!e.target.checked && key === "show_total_bandwidth") {
-          delete newConfig.max_bandwidth_gbps;
+        if (e.target.type === "checkbox") {
+          value = e.target.checked;
+        } else if (e.target.type === "number") {
+          value = parseInt(value) || 0;
         }
 
-        this._config = newConfig;
-        this.dispatchEvent(new Event("config-changed", { bubbles: true, composed: true, detail: { config: newConfig } }));
-      });
-    });
+        this._config = { ...this._config, [key]: value };
 
-    // Sync gauge row visibility
-    const gaugeCheck = this.querySelector('[data-key="show_total_bandwidth"]');
-    const gaugeRow = this.querySelector('#maxbw');
-    gaugeCheck.addEventListener('change', () => {
-      gaugeRow.style.display = gaugeCheck.checked ? 'flex' : 'none';
+        // Toggle bandwidth row visibility
+        if (key === "show_total_bandwidth") {
+          this.querySelector("#bw-row").style.display = value ? "flex" : "none";
+        }
+
+        this.dispatchEvent(
+          new Event("config-changed", { bubbles: true, composed: true, detail: { config: this._config } })
+        );
+      });
     });
   }
 }
 
+customElements.define("switch-port-card-pro", SwitchPortCardPro);
 customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
