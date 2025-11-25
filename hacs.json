@@ -4,4 +4,5 @@
   "zip_release": true,
   "filename": "switch-port-card-pro.zip",
   "homeassistant": "2024.1.0"
+  "hacs": "0.24.0"
 }
