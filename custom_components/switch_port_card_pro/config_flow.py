@@ -1,15 +1,14 @@
 import logging
-from typing import Any, List
+from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.const import Platform
 from homeassistant.helpers import config_validation as cv
 
-# Import constants from const.py
+from .snmp_helper import async_snmp_get
 from .const import (
     DOMAIN,
     CONF_HOST,
@@ -24,9 +23,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# --- Configuration Schemas ---
-
-# Schema for initial setup (Host and Community)
+# Initial setup schema (host + community)
 SETUP_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
@@ -34,123 +31,81 @@ SETUP_SCHEMA = vol.Schema(
     }
 )
 
-# Schema for the Advanced Options Flow
-OPTIONS_SCHEMA = vol.Schema(
-    {
-        # Port Configuration
-        vol.Optional(
-            CONF_PORTS, 
-            default=",".join(map(str, DEFAULT_PORTS))
-        ): str, # Stored as a comma-separated string
-        vol.Optional(
-            CONF_INCLUDE_VLANS, 
-            default=False
-        ): cv.boolean,
 
-        # OID Overrides (Default OIDs are defined in const.py)
-        vol.Optional(CONF_BASE_OIDS): vol.Schema(
-            {
-                # Port-level OIDs
-                vol.Optional("rx", default=DEFAULT_BASE_OIDS["rx"]): str,
-                vol.Optional("tx", default=DEFAULT_BASE_OIDS["tx"]): str,
-                vol.Optional("status", default=DEFAULT_BASE_OIDS["status"]): str,
-                vol.Optional("speed", default=DEFAULT_BASE_OIDS["speed"]): str,
-                vol.Optional("name", default=DEFAULT_BASE_OIDS["name"]): str,
-                vol.Optional("vlan", default=DEFAULT_BASE_OIDS["vlan"]): str,
+def build_options_schema(current: dict[str, Any]) -> vol.Schema:
+    """Create options form dynamically using current values."""
 
-                # System-level OIDs
-                vol.Optional("cpu", default=DEFAULT_SYSTEM_OIDS["cpu"]): str,
-                vol.Optional("cpu_zyxel", default=DEFAULT_SYSTEM_OIDS["cpu_zyxel"]): str,
-                vol.Optional("memory", default=DEFAULT_SYSTEM_OIDS["memory"]): str,
-                vol.Optional("memory_zyxel", default=DEFAULT_SYSTEM_OIDS["memory_zyxel"]): str,
-                vol.Optional("uptime", default=DEFAULT_SYSTEM_OIDS["uptime"]): str,
-                vol.Optional("hostname", default=DEFAULT_SYSTEM_OIDS["hostname"]): str,
-            }
-        ),
-    }
-)
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_PORTS,
+                default=current.get(
+                    CONF_PORTS, ",".join(map(str, DEFAULT_PORTS))
+                ),
+            ): str,
 
-# --- Main Config Flow ---
+            vol.Optional(
+                CONF_INCLUDE_VLANS,
+                default=current.get(CONF_INCLUDE_VLANS, False),
+            ): cv.boolean,
+
+            vol.Optional(CONF_BASE_OIDS, default=current.get(CONF_BASE_OIDS, {})): vol.Schema(
+                {
+                    vol.Optional("rx", default=current.get("rx", DEFAULT_BASE_OIDS["rx"])): str,
+                    vol.Optional("tx", default=current.get("tx", DEFAULT_BASE_OIDS["tx"])): str,
+                    vol.Optional("status", default=current.get("status", DEFAULT_BASE_OIDS["status"])): str,
+                    vol.Optional("speed", default=current.get("speed", DEFAULT_BASE_OIDS["speed"])): str,
+                    vol.Optional("name", default=current.get("name", DEFAULT_BASE_OIDS["name"])): str,
+                    vol.Optional("vlan", default=current.get("vlan", DEFAULT_BASE_OIDS["vlan"])): str,
+
+                    vol.Optional("cpu", default=current.get("cpu", DEFAULT_SYSTEM_OIDS["cpu"])): str,
+                    vol.Optional("cpu_zyxel", default=current.get("cpu_zyxel", DEFAULT_SYSTEM_OIDS["cpu_zyxel"])): str,
+                    vol.Optional("memory", default=current.get("memory", DEFAULT_SYSTEM_OIDS["memory"])): str,
+                    vol.Optional("memory_zyxel", default=current.get("memory_zyxel", DEFAULT_SYSTEM_OIDS["memory_zyxel"])): str,
+                    vol.Optional("uptime", default=current.get("uptime", DEFAULT_SYSTEM_OIDS["uptime"])): str,
+                    vol.Optional("hostname", default=current.get("hostname", DEFAULT_SYSTEM_OIDS["hostname"])): str,
+                }
+            ),
+        }
+    )
+
 
 class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Switch Port Card Pro."""
+    """Config flow for Switch Port Card Pro."""
 
     VERSION = 1
-    
-    # 1. Link the Options Flow Handler
+
     @staticmethod
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
-        """Get the options flow for this handler."""
+    def async_get_options_flow(config_entry):
         return SwitchPortCardProOptionsFlowHandler(config_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle the initial step."""
-        errors: dict[str, str] = {}
-        
-        if user_input is not None:
-            # Check if this host is already configured
-            await self.async_set_unique_id(user_input[CONF_HOST].lower())
-            self._abort_if_unique_id_configured()
+        """Initial configuration step."""
 
-            # 2. Connection Validation (Placeholder for actual SNMP check)
-            try:
-                await self._test_connection(user_input[CONF_HOST], user_input[CONF_COMMUNITY])
-            except ConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception: # Catch all other errors during connection test
-                errors["base"] = "unknown"
+        errors = {}
 
-            if not errors:
-                # Setup is successful, create the entry.
-                # All advanced settings will use the default values set in OPTIONS_SCHEMA
-                # unless changed by the user in the Options Flow later.
-                return self.async_create_entry(title=user_input[CONF_HOST], data=user_input)
-
-        # Show the initial configuration form
-        return self.async_show_form(
-            step_id="user",
-            data_schema=SETUP_SCHEMA,
-            errors=errors,
-        )
-
-   
-# --- Config Flow ---
-class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Switch Port Card Pro."""
-
-    VERSION = 1
-    
-    @staticmethod
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
-        """Get the options flow for this handler."""
-        return SwitchPortCardProOptionsFlowHandler(config_entry)
-
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle the initial step."""
-        errors: dict[str, str] = {}
-        
         if user_input is not None:
             await self.async_set_unique_id(user_input[CONF_HOST].lower())
             self._abort_if_unique_id_configured()
 
-            # Connection Validation: Use the real connection test
             try:
-                # 1. Use the core `hass` object to run the async test
-                # 2. Test with the standard system name OID
                 await self._test_connection(
-                    self.hass, 
-                    user_input[CONF_HOST], 
-                    user_input[CONF_COMMUNITY]
+                    self.hass,
+                    user_input[CONF_HOST],
+                    user_input[CONF_COMMUNITY],
                 )
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except ValueError:
-                errors["base"] = "invalid_community" # Specific error if community is wrong
+                errors["base"] = "invalid_community"
             except Exception:
                 errors["base"] = "unknown"
 
             if not errors:
-                return self.async_create_entry(title=user_input[CONF_HOST], data=user_input)
+                return self.async_create_entry(
+                    title=user_input[CONF_HOST],
+                    data=user_input,
+                )
 
         return self.async_show_form(
             step_id="user",
@@ -158,43 +113,29 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    # The actual implementation of the connection test using the helper
     async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
-        """Test if we can connect to the SNMP host."""
-        # Use sysName (1.3.6.1.2.1.1.5.0) as a simple test OID
+        """SNMP connectivity test."""
         await async_snmp_get(hass, host, community, "1.3.6.1.2.1.1.5.0")
 
-# --- Options Flow ---
-class SwitchPortCardProOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for Switch Port Card Pro."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
+class SwitchPortCardProOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options for Switch Port Card Pro."""
+
+    def __init__(self, config_entry):
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle the options flow."""
-        
+    async def async_step_init(self, user_input=None):
+        """Handle options."""
+
         if user_input is not None:
-            # 3. CORRECT WAY TO SAVE OPTIONS:
-            # Use self.async_create_entry to update the 'options' of the config entry
             return self.async_create_entry(title="", data=user_input)
-        
-        # Determine the current state of options (use existing options or main data defaults)
-        # This allows the form to be pre-filled with the current settings.
-        options = {
-            # Start with existing options, if any, falling back to main data or defaults.
-            **OPTIONS_SCHEMA({}), 
-            **self.config_entry.options, 
+
+        current = {
+            **self.config_entry.data,
+            **self.config_entry.options,
         }
 
-        # Show the advanced options form
         return self.async_show_form(
             step_id="init",
-            data_schema=OPTIONS_SCHEMA,
-            description_placeholders={
-                "base_oids_info": "Customize these OIDs if the automatic discovery or defaults do not work for your specific switch model."
-            },
-            # Pass current options to pre-fill the form
-            initial_data=options,
+            data_schema=build_options_schema(current),
         )
