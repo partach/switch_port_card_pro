@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfDataRate, CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+# IMPORTANT: Ensure pysnmp is in your manifest.json requirements
 from pysnmp.hlapi import (
     SnmpEngine,
     CommunityData,
@@ -36,19 +37,14 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# SNMP executor pool
-_SNMP_EXECUTOR = ThreadPoolExecutor(max_workers=3)
-
-# Recommended safe polling interval
+_SNMP_EXECUTOR = ThreadPoolExecutor(max_workers=5)
 UPDATE_INTERVAL = timedelta(seconds=30)
 
-
 # ======================================================================
-# SNMP helper functions (run in executor)
+# SNMP Helpers
 # ======================================================================
 
 def _snmp_get(host: str, community: str, oid: str) -> Optional[Any]:
-    """Perform SNMP GET (blocking)."""
     try:
         iterator = getCmd(
             SnmpEngine(),
@@ -63,26 +59,24 @@ def _snmp_get(host: str, community: str, oid: str) -> Optional[Any]:
     except Exception:
         return None
 
-
 def _snmp_walk(host: str, community: str, base_oid: str) -> Dict[str, Any]:
-    """Perform SNMP WALK (blocking)."""
     result = {}
     try:
         for (errInd, errStat, errIdx, varBinds) in nextCmd(
             SnmpEngine(),
             CommunityData(community, mpModel=1),
-            UdpTransportTarget((host, 161), timeout=2, retries=1),
+            UdpTransportTarget((host, 161), timeout=3, retries=1),
             ObjectType(ObjectIdentity(base_oid)),
             lookupMib=False,
         ):
             if errInd or errStat:
                 break
             for vb in varBinds:
+                # Store keys as string OID
                 result[str(vb[0])] = vb[1]
     except Exception:
         pass
     return result
-
 
 # ======================================================================
 # Coordinator
@@ -106,7 +100,6 @@ class SwitchPortCoordinator(DataUpdateCoordinator):
             name=f"{DOMAIN}_{host}",
             update_interval=UPDATE_INTERVAL,
         )
-        self.hass = hass
         self.host = host
         self.community = community
         self.ports = ports
@@ -119,181 +112,180 @@ class SwitchPortCoordinator(DataUpdateCoordinator):
         return await loop.run_in_executor(_SNMP_EXECUTOR, self._poll)
 
     def _poll(self) -> Dict[str, Any]:
-        """Blocking SNMP collection."""
         host = self.host
         community = self.community
-        ports_out = {}
-
-        # Walk RX/TX tables
+        
+        # 1. Walk Tables
+        # We need RX/TX for bandwidth calc, Status/Speed for visuals
         rx_walk = _snmp_walk(host, community, self.base_oids.get("rx", ""))
         tx_walk = _snmp_walk(host, community, self.base_oids.get("tx", ""))
+        status_walk = _snmp_walk(host, community, self.base_oids.get("status", ""))
+        speed_walk = _snmp_walk(host, community, self.base_oids.get("speed", ""))
 
-        rx_map = {}
-        tx_map = {}
-        for oid, val in rx_walk.items():
-            try:
-                idx = int(oid.split(".")[-1])
-                rx_map[idx] = int(val)
-            except Exception:
-                pass
-        for oid, val in tx_walk.items():
-            try:
-                idx = int(oid.split(".")[-1])
-                tx_map[idx] = int(val)
-            except Exception:
-                pass
+        # Helper to parse walk results by last OID index
+        def parse_walk(walk_data):
+            res = {}
+            for oid, val in walk_data.items():
+                try:
+                    idx = int(oid.split(".")[-1])
+                    res[idx] = int(val)
+                except Exception:
+                    pass
+            return res
 
-        # Per-port data
+        rx_map = parse_walk(rx_walk)
+        tx_map = parse_walk(tx_walk)
+        status_map = parse_walk(status_walk)
+        speed_map = parse_walk(speed_walk)
+
+        ports_out = {}
+        total_rx = 0
+        total_tx = 0
+
         for p in self.ports:
+            # SNMP Status: 1=up, 2=down
+            raw_status = status_map.get(p, 2)
+            is_up = (raw_status == 1)
+            
+            # SNMP Speed is usually in bps (some switches use other units, standard is bps)
+            raw_speed = speed_map.get(p, 0)
+            
+            rx = rx_map.get(p, 0)
+            tx = tx_map.get(p, 0)
+            
             ports_out[str(p)] = {
-                "rx": rx_map.get(p, 0),
-                "tx": tx_map.get(p, 0),
+                "rx": rx,
+                "tx": tx,
+                "status": "on" if is_up else "off", # Converted for JS card
+                "speed": raw_speed
             }
 
-        # Total bandwidth
-        total_rx = sum(v["rx"] for v in ports_out.values())
-        total_tx = sum(v["tx"] for v in ports_out.values())
+            total_rx += rx
+            total_tx += tx
+
+        # Bandwidth Calc (Total MBps across all ports)
+        # Note: Counter overflow logic is not handled here, basic polling
         bandwidth = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
 
-        # System OIDs
-        cpu = None
-        mem = None
-        uptime_s = None
-        hostname = None
+        # 2. System OIDs
+        sys_data = {
+            "cpu": None, "memory": None, "uptime": None, "hostname": None
+        }
+        
+        # Simple helpers for single OIDs
+        def get_single(key, fallback=None):
+            oid = self.system_oids.get(key) or fallback
+            if not oid: return None
+            val = _snmp_get(host, community, oid)
+            return val
 
-        cpu_oid = self.system_oids.get("cpu") or self.system_oids.get("cpu_zyxel")
-        mem_oid = self.system_oids.get("memory") or self.system_oids.get("memory_zyxel")
+        try:
+            cpu_val = get_single("cpu", self.system_oids.get("cpu_zyxel"))
+            if cpu_val is not None: sys_data["cpu"] = int(cpu_val)
+        except: pass
 
-        if cpu_oid:
-            try: cpu = int(_snmp_get(host, community, cpu_oid) or 0)
-            except: cpu = None
+        try:
+            mem_val = get_single("memory", self.system_oids.get("memory_zyxel"))
+            if mem_val is not None: sys_data["memory"] = int(mem_val)
+        except: pass
 
-        if mem_oid:
-            try: mem = int(_snmp_get(host, community, mem_oid) or 0)
-            except: mem = None
+        try:
+            up_val = get_single("uptime")
+            if up_val is not None: sys_data["uptime"] = int(up_val) / 100
+        except: pass
 
-        if self.system_oids.get("uptime"):
-            try:
-                uptime_ticks = int(_snmp_get(host, community, self.system_oids["uptime"]) or 0)
-                uptime_s = uptime_ticks / 100
-            except:
-                uptime_s = None
-
-        if self.system_oids.get("hostname"):
-            try:
-                hostname = _snmp_get(host, community, self.system_oids["hostname"])
-                hostname = str(hostname) if hostname else None
-            except:
-                hostname = None
+        try:
+            name_val = get_single("hostname")
+            if name_val is not None: sys_data["hostname"] = str(name_val)
+        except: pass
 
         return {
             "ports": ports_out,
             "bandwidth_mbps": bandwidth,
-            "system": {
-                "cpu": cpu,
-                "memory": mem,
-                "uptime": uptime_s,
-                "hostname": hostname,
-            },
+            "system": sys_data,
         }
 
-
 # ======================================================================
-# Base Sensor Entity
+# Entities
 # ======================================================================
 
 class SwitchPortBaseSensor(SensorEntity):
-    """Base class for all sensors in the integration."""
-
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str):
         self.coordinator = coordinator
         self.entry_id = entry_id
-
-        self._attr_should_poll = False
+        self._attr_has_entity_name = True
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.host)},
             name=f"Switch {coordinator.host}",
-            manufacturer="Generic Switch",
+            manufacturer="SNMP Switch",
+            model="Generic",
         )
 
     @property
     def available(self) -> bool:
         return self.coordinator.data is not None
 
-
-# ======================================================================
-# Individual Sensors
-# ======================================================================
-
 class SwitchBandwidthSensor(SwitchPortBaseSensor):
-    """Total combined RX+TX bandwidth."""
-
+    _attr_name = "Total Bandwidth"
     _attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str):
+    def __init__(self, coordinator, entry_id):
         super().__init__(coordinator, entry_id)
-        self._attr_name = "Switch Total Bandwidth"
         self._attr_unique_id = f"{entry_id}_bandwidth"
 
     @property
     def native_value(self):
         return self.coordinator.data.get("bandwidth_mbps")
 
-
-class SystemCpuSensor(SwitchPortBaseSensor):
-    def __init__(self, coordinator, entry_id):
+class SystemSensor(SwitchPortBaseSensor):
+    def __init__(self, coordinator, entry_id, key, name, unit=None):
         super().__init__(coordinator, entry_id)
-        self._attr_name = "Switch CPU"
-        self._attr_unique_id = f"{entry_id}_cpu"
+        self.key = key
+        self._attr_name = name
+        self._attr_unique_id = f"{entry_id}_{key}"
+        if unit: self._attr_native_unit_of_measurement = unit
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("system", {}).get("cpu")
+        return self.coordinator.data.get("system", {}).get(self.key)
 
+# --- PORT SENSORS ---
 
-class SystemMemorySensor(SwitchPortBaseSensor):
-    def __init__(self, coordinator, entry_id):
+class SwitchPortStatusSensor(SwitchPortBaseSensor):
+    """Status sensor: returns 'on' or 'off'."""
+    # We use a string sensor here because the JS card looks for "on"/"up" strings
+    # A BinarySensor is technically more correct in HA, but string is safer for custom cards 
+    # that parse raw state.
+
+    def __init__(self, coordinator, entry_id, port):
         super().__init__(coordinator, entry_id)
-        self._attr_name = "Switch Memory"
-        self._attr_unique_id = f"{entry_id}_memory"
+        self.port = str(port)
+        # Naming is critical for the JS _find() function
+        self._attr_name = f"Port {port}"
+        self._attr_unique_id = f"{entry_id}_port_{port}"
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("system", {}).get("memory")
+        return self.coordinator.data.get("ports", {}).get(self.port, {}).get("status")
 
+class SwitchPortSpeedSensor(SwitchPortBaseSensor):
+    """Speed sensor: returns raw bps integer."""
+    _attr_native_unit_of_measurement = UnitOfDataRate.BITS_PER_SECOND
+    _attr_device_class = SensorDeviceClass.DATA_RATE
 
-class SystemUptimeSensor(SwitchPortBaseSensor):
-    def __init__(self, coordinator, entry_id):
+    def __init__(self, coordinator, entry_id, port):
         super().__init__(coordinator, entry_id)
-        self._attr_name = "Switch Uptime (seconds)"
-        self._attr_unique_id = f"{entry_id}_uptime"
+        self.port = str(port)
+        self._attr_name = f"Port Speed {port}"
+        self._attr_unique_id = f"{entry_id}_port_speed_{port}"
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("system", {}).get("uptime")
-
-
-class PortTrafficSensor(SwitchPortBaseSensor):
-    """Per-port RX or TX sensor."""
-
-    def __init__(self, coordinator, entry_id: str, port: int, direction: str):
-        super().__init__(coordinator, entry_id)
-        self.port = port
-        self.direction = direction
-        self._attr_name = f"Port {port} {direction.upper()}"
-        self._attr_unique_id = f"{entry_id}_port_{port}_{direction}"
-
-    @property
-    def native_value(self):
-        return (
-            self.coordinator.data.get("ports", {})
-            .get(str(self.port), {})
-            .get(self.direction, 0)
-        )
-
+        return self.coordinator.data.get("ports", {}).get(self.port, {}).get("speed")
 
 # ======================================================================
-# Setup entry (called automatically by HA)
+# Setup
 # ======================================================================
 
 async def async_setup_entry(
@@ -301,18 +293,15 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up sensors when a config entry is loaded."""
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
     ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
 
-    # Build OID sets
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
         "tx": entry.options.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
         "status": entry.options.get("oid_status", DEFAULT_BASE_OIDS["status"]),
         "speed": entry.options.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
-        "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS["name"]),
     }
 
     system_oids = {
@@ -325,25 +314,22 @@ async def async_setup_entry(
     coordinator = SwitchPortCoordinator(
         hass, host, community, ports, base_oids, system_oids
     )
-    # ###### CRITICAL LINES ######
-    # Store coordinator so the card can find the device via device_id
-
+    
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
-    # Force first refresh so entities have data immediately
     await coordinator.async_config_entry_first_refresh()
-    # #########################
 
     entities = [
         SwitchBandwidthSensor(coordinator, entry.entry_id),
-        SystemCpuSensor(coordinator, entry.entry_id),
-        SystemMemorySensor(coordinator, entry.entry_id),
-        SystemUptimeSensor(coordinator, entry.entry_id),
+        SystemSensor(coordinator, entry.entry_id, "cpu", "CPU", "%"),
+        SystemSensor(coordinator, entry.entry_id, "memory", "Memory", "%"),
+        SystemSensor(coordinator, entry.entry_id, "uptime", "Uptime", "s"),
     ]
 
-    # Per-port sensors
     for port in ports:
-        entities.append(PortTrafficSensor(coordinator, entry.entry_id, port, "rx"))
-        entities.append(PortTrafficSensor(coordinator, entry.entry_id, port, "tx"))
+        # We only create Status and Speed sensors because the visual card
+        # relies on them. RX/TX per port is often overkill for HA recorder db
+        # unless you specifically need graphs for every port.
+        entities.append(SwitchPortStatusSensor(coordinator, entry.entry_id, port))
+        entities.append(SwitchPortSpeedSensor(coordinator, entry.entry_id, port))
 
     async_add_entities(entities)
