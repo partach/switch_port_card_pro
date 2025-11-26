@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import logging
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-
+from homeassistant.helpers.config_validation import config_entry_only_config_schema
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = config_entry_only_config_schema("switch_port_card_pro")
+
+PLATFORMS = [Platform.SENSOR]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up integration."""
