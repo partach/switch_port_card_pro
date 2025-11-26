@@ -113,19 +113,58 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    # Placeholder for a real connection test
-    async def _test_connection(self, host: str, community: str) -> None:
-        """Test if we can connect to the SNMP host."""
-        _LOGGER.debug("Testing SNMP connection to %s with community %s", host, community)
-        # In a real integration, this would use the SNMP library 
-        # to perform a simple GET (e.g., sysName) and raise a 
-        # ConnectionError if it fails.
-        if host == "fail_host": # Example failure case
-             raise ConnectionError("Host failed to respond to SNMP.")
+   
+# --- Config Flow ---
+class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Switch Port Card Pro."""
 
+    VERSION = 1
+    
+    @staticmethod
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        """Get the options flow for this handler."""
+        return SwitchPortCardProOptionsFlowHandler(config_entry)
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            await self.async_set_unique_id(user_input[CONF_HOST].lower())
+            self._abort_if_unique_id_configured()
+
+            # Connection Validation: Use the real connection test
+            try:
+                # 1. Use the core `hass` object to run the async test
+                # 2. Test with the standard system name OID
+                await self._test_connection(
+                    self.hass, 
+                    user_input[CONF_HOST], 
+                    user_input[CONF_COMMUNITY]
+                )
+            except ConnectionError:
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_community" # Specific error if community is wrong
+            except Exception:
+                errors["base"] = "unknown"
+
+            if not errors:
+                return self.async_create_entry(title=user_input[CONF_HOST], data=user_input)
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=SETUP_SCHEMA,
+            errors=errors,
+        )
+
+    # The actual implementation of the connection test using the helper
+    async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
+        """Test if we can connect to the SNMP host."""
+        # Use sysName (1.3.6.1.2.1.1.5.0) as a simple test OID
+        await async_snmp_get(hass, host, community, "1.3.6.1.2.1.1.5.0")
 
 # --- Options Flow ---
-
 class SwitchPortCardProOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Switch Port Card Pro."""
 
