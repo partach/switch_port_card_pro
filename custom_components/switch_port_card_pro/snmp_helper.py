@@ -1,41 +1,146 @@
-# --- File: custom_components/switch_port_card_pro/snmp_helper.py ---
+"""
+Async SNMP helper for Switch Port Card Pro.
+Fully non-blocking and Home Assistant safe.
+"""
 
-from homeassistant.core import HomeAssistant
+from __future__ import annotations
+import asyncio
+import logging
+
 from pysnmp.hlapi.asyncio import (
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
     ContextData,
+    getCmd,
+    nextCmd,
     ObjectType,
     ObjectIdentity,
-    getCmd,
 )
 
-async def async_snmp_get(hass: HomeAssistant, host: str, community: str, oid: str) -> str:
-    """Asynchronously perform an SNMP GET request for a single OID."""
+_LOGGER = logging.getLogger(__name__)
 
-    def snmp_get_sync() -> str:
-        """Synchronously perform the SNMP GET request."""
-        errorIndication, errorStatus, errorIndex, varBinds = next(
+# Global SNMP engine: safe to reuse across calls
+SNMP_ENGINE = SnmpEngine()
+
+
+async def async_snmp_get(
+    hass,
+    host: str,
+    community: str,
+    oid: str,
+    timeout: int = 3,
+    retries: int = 1,
+) -> str:
+    """
+    Perform an async SNMP GET.
+    Raises ConnectionError or ValueError with meaningful messages.
+    """
+
+    try:
+        response = await asyncio.wait_for(
             getCmd(
-                SnmpEngine(),
+                SNMP_ENGINE,
                 CommunityData(community),
-                UdpTransportTarget((host, 161), timeout=5, retries=1),
+                UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
                 ContextData(),
-                ObjectIdentity(oid),
-            )
+                ObjectType(ObjectIdentity(oid)),
+            ),
+            timeout=timeout + 1,  # wrapper timeout
         )
 
-        if errorIndication:
-            raise ConnectionError(f"SNMP Connection Error: {errorIndication}")
-        if errorStatus:
-            raise ValueError(f"SNMP Error Status: {errorStatus.prettyPrint()} at {errorIndex and varBinds[int(errorIndex) - 1][0] or '?'}")
+    except asyncio.TimeoutError:
+        raise ConnectionError(f"SNMP timeout contacting {host}")
 
-        # Return the value (usually a tuple like (OID, Value))
-        return str(varBinds[0][1])
+    except Exception as exc:
+        raise ConnectionError(f"SNMP GET failed: {exc}")
 
-    # Run the synchronous SNMP call in a separate thread (executor)
-    # to prevent blocking the Home Assistant event loop.
-    return await hass.async_add_executor_job(snmp_get_sync)
+    error_indication, error_status, error_index, var_binds = response
 
-# --- End of snmp_helper.py ---
+    if error_indication:
+        raise ConnectionError(f"SNMP engine error: {error_indication}")
+
+    if error_status:
+        raise ValueError(
+            f"{error_status.prettyPrint()} at index {error_index}"
+        )
+
+    return var_binds[0][1].prettyPrint()
+
+
+async def async_snmp_walk(
+    hass,
+    host: str,
+    community: str,
+    oid: str,
+    timeout: int = 3,
+    retries: int = 1,
+) -> dict[str, str]:
+    """
+    Perform an async SNMP WALK (via nextCmd).
+    Returns a dict {oid: value}.
+    """
+
+    results: dict[str, str] = {}
+
+    try:
+        async for (
+            error_indication,
+            error_status,
+            error_index,
+            var_binds,
+        ) in nextCmd(
+            SNMP_ENGINE,
+            CommunityData(community),
+            UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
+            ContextData(),
+            ObjectType(ObjectIdentity(oid)),
+            lexicographicMode=False,
+        ):
+            if error_indication:
+                raise ConnectionError(error_indication)
+
+            if error_status:
+                raise ValueError(f"{error_status.prettyPrint()} at {error_index}")
+
+            for name, val in var_binds:
+                results[str(name)] = val.prettyPrint()
+
+    except asyncio.TimeoutError:
+        raise ConnectionError(f"SNMP walk timeout contacting {host}")
+
+    except Exception as exc:
+        raise ConnectionError(f"SNMP WALK failed: {exc}")
+
+    return results
+
+
+async def async_snmp_bulk(
+    hass,
+    host: str,
+    community: str,
+    oid_list: list[str],
+    timeout: int = 3,
+    retries: int = 1,
+) -> dict[str, str]:
+    """
+    Perform multiple SNMP GETs efficiently.
+    Returns {oid: value}.
+    """
+
+    tasks = [
+        async_snmp_get(hass, host, community, oid, timeout=timeout, retries=retries)
+        for oid in oid_list
+    ]
+
+    # run all queries concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    mapped = {}
+    for oid, result in zip(oid_list, results):
+        if isinstance(result, Exception):
+            mapped[oid] = None
+        else:
+            mapped[oid] = result
+
+    return mapped
