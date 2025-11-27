@@ -90,26 +90,28 @@ async def async_snmp_walk(
         transport.timeout = timeout
         transport.retries = retries
 
-        async for error_indication, error_status, error_index, var_binds in next_cmd(
+        iterator = next_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
             ObjectType(ObjectIdentity(base_oid)),
             lexicographicMode=False,
-        ):
+            ignoreNonIncreasingOid=True,
+        )
+
+        async for error_indication, error_status, error_index, var_binds in await iterator:
             if error_indication:
-                _LOGGER.debug("SNMP WALK error: %s", error_indication)
+                _LOGGER.debug("SNMP WALK error indication: %s", error_indication)
                 break
             if error_status:
-                # End of MIB — normal
-                break
+                break  # End of MIB
 
             for name, val in var_binds:
                 results[str(name)] = val.prettyPrint()
 
     except Exception as exc:
-        _LOGGER.debug("SNMP WALK failed for %s: %s", base_oid, exc)
+        _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
 
     return results
     
