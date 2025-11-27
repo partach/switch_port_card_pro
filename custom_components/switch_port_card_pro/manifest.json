@@ -8,6 +8,6 @@
   "integration_type": "hub",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/partach/switch_port_card_pro/issues",
-  "requirements": ["pysnmp-lextudio>=6.0.11"],
+  "requirements": ["pysnmp>=7.1.0"],
   "version": "1.0.0"
 }
