@@ -14,11 +14,6 @@ This Home Assistant card shows the status of your switch ports and includes SNMP
   <em>Live port status with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (gray)</em>
 </p>
 
-
-First version is veriefied with:
-Real-time **28-port status** (24 copper + 4 SFP) for Zyxel XGS1935 (and similar) using **direct entity access**.
-But... quite some configurations are possible so will probably work for your switch as well. 
-
 The card is based on and therefor depedent on `SNMP data`. 
 
 **IMPORTANT**: SNMP requires the right baseoid for getting the right data.
@@ -42,18 +37,11 @@ Options:
 ## Preparing your switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual (don't ask me).
 What is important that you need:
- * SNMP enabled (duh; although tricky to find on some switches)
+ * SNMP otion enabled (duh; although tricky to find on some switches)
  * Define the community string (per default this is named `public` but you can change for slightly better security). Info is needed by integration during setup
  * The example uses SNMP Version v2C that you should set both at switch side and at HA (see below)
  * Set target IP trap desitnation (on your network switch) towards your HA IP
  * Some switches require different additional details settings (follow manufacturer manual)
-
-## Adding one entity to HA
-Below you can add directly to your configuration.yaml, 
-
-```yaml
-tbd
-```
 
 ## Coniguration options
 The card comes with a configuration dialog that guides the instalation in HA. See below for more details.
@@ -71,14 +59,8 @@ The card comes with a configuration dialog that guides the instalation in HA. Se
 ## using the card example
 The card has a configuration screen which can be used in stead...
 ```yaml
-  type: custom:switch-port-card
-  entity_prefix: mainswitch
-  total_ports: 28
-  sfp_start_port: 25
-  name: Main Switch
-  compact_mode: false
-  copper_label: GIGABIT
-  sfp_label: 10G SFP+
+  type: custom:switch-port-card-pro
+  device: xxx
 ```
 
 ## Changelog
