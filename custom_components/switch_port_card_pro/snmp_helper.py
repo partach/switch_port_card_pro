@@ -7,7 +7,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pysnmp.hlapi.asyncio import (
+#for now due to architecture change we focus on supporting v2c only (getcmd is shifted to v1arch)
+from pysnmp.hlapi.v1arch.asyncio import (
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
@@ -31,86 +32,65 @@ async def async_snmp_get(
     oid: str,
     timeout: int = 3,
     retries: int = 1,
-) -> str:
-    """
-    Perform an async SNMP GET.
-    Raises ConnectionError or ValueError with meaningful messages.
-    """
-
+) -> str | None:
+    """Async SNMP GET – v1arch style."""
     try:
         response = await asyncio.wait_for(
             getCmd(
-                SNMP_ENGINE,
+                _SNMP_ENGINE,
                 CommunityData(community),
                 UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
                 ContextData(),
                 ObjectType(ObjectIdentity(oid)),
             ),
-            timeout=timeout + 1,  # wrapper timeout
+            timeout=timeout + 2,
         )
-
     except asyncio.TimeoutError:
-        raise ConnectionError(f"SNMP timeout contacting {host}")
-
+        raise ConnectionError(f"Timeout contacting {host}")
     except Exception as exc:
-        raise ConnectionError(f"SNMP GET failed: {exc}")
+        raise ConnectionError(f"SNMP error: {exc}")
 
     error_indication, error_status, error_index, var_binds = response
 
     if error_indication:
-        raise ConnectionError(f"SNMP engine error: {error_indication}")
-
+        raise ConnectionError(str(error_indication))
     if error_status:
-        raise ValueError(
-            f"{error_status.prettyPrint()} at index {error_index}"
-        )
+        raise ValueError(f"{error_status.prettyPrint()} at {error_index}")
 
-    return var_binds[0][1].prettyPrint()
+    return var_binds[0][1].prettyPrint() if var_binds else None
 
 
 async def async_snmp_walk(
     hass,
     host: str,
     community: str,
-    oid: str,
+    base_oid: str,
     timeout: int = 3,
     retries: int = 1,
 ) -> dict[str, str]:
-    """
-    Perform an async SNMP WALK (via nextCmd).
-    Returns a dict {oid: value}.
-    """
-
+    """Async SNMP WALK v1arch style."""
     results: dict[str, str] = {}
 
     try:
-        async for (
-            error_indication,
-            error_status,
-            error_index,
-            var_binds,
-        ) in nextCmd(
-            SNMP_ENGINE,
+        async for error_indication, error_status, error_index, var_binds in nextCmd(
+            _SNMP_ENGINE,
             CommunityData(community),
             UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
             ContextData(),
-            ObjectType(ObjectIdentity(oid)),
+            ObjectType(ObjectIdentity(base_oid)),
             lexicographicMode=False,
         ):
             if error_indication:
-                raise ConnectionError(error_indication)
-
+                raise ConnectionError(str(error_indication))
             if error_status:
                 raise ValueError(f"{error_status.prettyPrint()} at {error_index}")
-
-            for name, val in var_binds:
-                results[str(name)] = val.prettyPrint()
-
+            for var_bind in var_binds:
+                oid, value = var_bind
+                results[str(oid)] = value.prettyPrint()
     except asyncio.TimeoutError:
-        raise ConnectionError(f"SNMP walk timeout contacting {host}")
-
+        raise ConnectionError(f"Walk timeout on {host}")
     except Exception as exc:
-        raise ConnectionError(f"SNMP WALK failed: {exc}")
+        raise ConnectionError(f"Walk failed: {exc}")
 
     return results
 
