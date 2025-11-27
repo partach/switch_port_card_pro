@@ -8,22 +8,22 @@ import asyncio
 import logging
 
 #for now due to architecture change we focus on supporting v2c only (getcmd is shifted to v1arch)
-from pysnmp.hlapi.v1arch.asyncio import (
+from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
     ContextData,
-    getCmd,
-    nextCmd,
     ObjectType,
     ObjectIdentity,
+    get_cmd,
+    next_cmd,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 # Global SNMP engine: safe to reuse across calls
 SNMP_ENGINE = SnmpEngine()
-
+MpModel = Literal[0, 1]  # 0 = v1, 1 = v2c
 
 async def async_snmp_get(
     hass,
@@ -32,13 +32,13 @@ async def async_snmp_get(
     oid: str,
     timeout: int = 3,
     retries: int = 1,
+    mp_model: MpModel = 1,
 ) -> str | None:
-    """Async SNMP GET – v1arch style."""
     try:
         response = await asyncio.wait_for(
             getCmd(
                 _SNMP_ENGINE,
-                CommunityData(community),
+                CommunityData(community, mpModel=mp_model),
                 UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
                 ContextData(),
                 ObjectType(ObjectIdentity(oid)),
@@ -67,6 +67,7 @@ async def async_snmp_walk(
     base_oid: str,
     timeout: int = 3,
     retries: int = 1,
+    mp_model: MpModel = 1,
 ) -> dict[str, str]:
     """Async SNMP WALK v1arch style."""
     results: dict[str, str] = {}
@@ -74,7 +75,7 @@ async def async_snmp_walk(
     try:
         async for error_indication, error_status, error_index, var_binds in nextCmd(
             _SNMP_ENGINE,
-            CommunityData(community),
+            CommunityData(community, mpModel=mp_model),
             UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
             ContextData(),
             ObjectType(ObjectIdentity(base_oid)),
