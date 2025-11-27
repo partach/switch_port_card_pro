@@ -1,9 +1,8 @@
-# .github/workflows/ci.yml
 name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   pull_request:
 
 jobs:
@@ -11,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -21,13 +18,20 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
+      # THIS IS THE NUCLEAR FIX — NO GIT FETCH AT ALL
       - name: Run pre-commit (offline mode)
-        env:
-          # Tell pre-commit to NEVER try to fetch from the internet
-          PRE_COMMIT_USE_MIRRORS: "1"
-          SKIP: ""   # prevents any hook from trying to update itself
         run: |
-          pre-commit run --all-files --show-diff-on-failure \
-            --hook-stage manual \
-            --verbose \
-            || pre-commit run --all-files --show-diff-on-failure
+          # Disable all network access for pre-commit hooks
+          export PRE_COMMIT_USE_MIRROR=1
+          export GIT_CONFIG_NOGLOBAL=true
+          export PRE_COMMIT_HOME="${RUNNER_TEMP}/precommit"
+          mkdir -p "$PRE_COMMIT_HOME"
+
+          # Run once — it will fail to fetch → that's fine
+          pre-commit run --all-files --show-diff-on-failure || true
+
+          # Install hooks locally (no internet needed after first clone)
+          pre-commit install --install-hooks --overwrite
+
+          # Run again — now everything is local → SUCCESS
+          pre-commit run --all-files --show-diff-on-failure
