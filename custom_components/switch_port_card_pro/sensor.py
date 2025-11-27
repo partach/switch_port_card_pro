@@ -35,7 +35,7 @@ from .const import (
     DEFAULT_SYSTEM_OIDS,
     DOMAIN,
 )
-from .snmp_helper import async_snmp_get, async_snmp_walk
+from .snmp_helper import async_snmp_get, async_snmp_walk, async_snmp_bulk
 
 _LOGGER = logging.getLogger(__name__)
 
