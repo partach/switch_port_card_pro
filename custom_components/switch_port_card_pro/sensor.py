@@ -263,7 +263,10 @@ class FirmwareSensor(SwitchPortBaseEntity):
 
     @property
     def native_value(self):
-        return self.coordinator.data.system.get("firmware")
+        data = self.coordinator.data
+        if not data:
+            return None  # Prevent early crash
+        return data.system.get("firmware")
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
