@@ -1,13 +1,14 @@
 # --- File: custom_components/switch_port_card_pro/snmp_helper.py ---
 
 from homeassistant.core import HomeAssistant
-from pysnmp.hlapi import (
+from pysnmp.hlapi.asyncio import (
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
     ContextData,
-    getCmd,
+    ObjectType,
     ObjectIdentity,
+    getCmd,
 )
 
 async def async_snmp_get(hass: HomeAssistant, host: str, community: str, oid: str) -> str:
