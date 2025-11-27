@@ -5,7 +5,7 @@ import logging
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
