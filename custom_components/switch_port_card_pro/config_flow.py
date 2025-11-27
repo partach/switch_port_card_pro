@@ -83,9 +83,8 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_name": DEFAULT_BASE_OIDS.get("name", ""),
                         "oid_vlan": DEFAULT_BASE_OIDS.get("vlan", ""),
                         "oid_cpu": DEFAULT_SYSTEM_OIDS.get("cpu", ""),
-                        "oid_cpu_zyxel": DEFAULT_SYSTEM_OIDS.get("cpu_zyxel", ""),
+                        "firmware": DEFAULT_SYSTEM_OIDS.get("firmware", ""),
                         "oid_memory": DEFAULT_SYSTEM_OIDS.get("memory", ""),
-                        "oid_memory_zyxel": DEFAULT_SYSTEM_OIDS.get("memory_zyxel", ""),
                         "oid_hostname": DEFAULT_SYSTEM_OIDS.get("hostname", ""),
                         "oid_uptime": DEFAULT_SYSTEM_OIDS.get("uptime", ""),
                     },
@@ -192,16 +191,12 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                     default=current.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
                 ): str,
                 vol.Optional(
-                    "oid_cpu_zyxel",
-                    default=current.get("oid_cpu_zyxel", DEFAULT_SYSTEM_OIDS.get("cpu_zyxel", "")),
+                    "oid_firmware",
+                    default=current.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
                 ): str,
                 vol.Optional(
                     "oid_memory",
                     default=current.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-                ): str,
-                vol.Optional(
-                    "oid_memory_zyxel",
-                    default=current.get("oid_memory_zyxel", DEFAULT_SYSTEM_OIDS.get("memory_zyxel", "")),
                 ): str,
                 vol.Optional(
                     "oid_hostname",
