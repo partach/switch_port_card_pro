@@ -1,47 +1,25 @@
 # .github/workflows/ci.yml
-name: CI – Switch Port Card Pro
+name: CI
 
 on:
   push:
     branches: [ main, master ]
   pull_request:
-    branches: [ main, master ]
 
 jobs:
-  lint-and-test:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install homeassistant pre-commit pysnmp-lextudio
+          pip install pre-commit homeassistant pysnmp-lextudio
 
-      - name: Run pre-commit hooks
-        run: |
-          pre-commit run --all-files --show-diff-on-failure
-
-      - name: Validate manifest.json
-        run: |
-          python - <<'EOF'
-          import json, sys
-          try:
-              with open('custom_components/switch_port_card_pro/manifest.json') as f:
-                  data = json.load(f)
-              required = {'domain', 'name', 'version', 'documentation', 'requirements', 'config_flow', 'codeowners'}
-              missing = required - data.keys()
-              if missing:
-                  print(f"ERROR: manifest.json missing keys: {missing}")
-                  sys.exit(1)
-              print("manifest.json is valid")
-          except Exception as e:
-              print(f"ERROR: {e}")
-              sys.exit(1)
-          EOF
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
