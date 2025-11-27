@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Literal, Any
+from typing import Literal
 
 # v3arch is the current official async API (v2c + v3 compatible)
 from pysnmp.hlapi.v3arch.asyncio import (
