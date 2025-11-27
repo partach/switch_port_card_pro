@@ -257,16 +257,13 @@ class FirmwareSensor(SwitchPortBaseEntity):
     _attr_name = "Firmware"
     _attr_icon = "mdi:chip"
 
-    def __init__(self, coordinator, entry_id):
+    def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str) -> None:
         super().__init__(coordinator, entry_id)
         self._attr_unique_id = f"{entry_id}_firmware"
 
     @property
-    def native_value(self):
-        data = self.coordinator.data
-        if not data:
-            return None  # Prevent early crash
-        return data.system.get("firmware")
+    def native_value(self) -> str | None:
+        return self.coordinator.data.system.get("firmware") if self.coordinator.data else None
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
