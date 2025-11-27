@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
@@ -436,7 +437,7 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Force first refresh to populate data immediately
-    await coordinator.async_config_entry_first_refresh()
+  #  await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
 
     # Create entities
     entities = [
