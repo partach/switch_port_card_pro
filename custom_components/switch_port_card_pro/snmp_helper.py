@@ -6,8 +6,9 @@ Fully non-blocking and Home Assistant safe.
 from __future__ import annotations
 import asyncio
 import logging
+from typing import Literal
 
-#for now due to architecture change we focus on supporting v2c only (getcmd is shifted to v1arch)
+# Import the correct async functions and components
 from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
     CommunityData,
@@ -16,7 +17,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
     get_cmd,
-    next_cmd,
+    next_cmd, # Use next_cmd for walk operations
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,10 +35,12 @@ async def async_snmp_get(
     retries: int = 1,
     mp_model: MpModel = 1,
 ) -> str | None:
+    """Perform SNMP GET using non-blocking API."""
     try:
+        # Use get_cmd for the async API
         response = await asyncio.wait_for(
-            getCmd(
-                _SNMP_ENGINE,
+            get_cmd(
+                SNMP_ENGINE,
                 CommunityData(community, mpModel=mp_model),
                 UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
                 ContextData(),
@@ -55,6 +58,10 @@ async def async_snmp_get(
     if error_indication:
         raise ConnectionError(str(error_indication))
     if error_status:
+        # If the OID is missing, return None instead of raising ValueError,
+        # unless it's a critical connection error.
+        if "noSuchName" in error_status.prettyPrint():
+            return None
         raise ValueError(f"{error_status.prettyPrint()} at {error_index}")
 
     return var_binds[0][1].prettyPrint() if var_binds else None
@@ -69,12 +76,13 @@ async def async_snmp_walk(
     retries: int = 1,
     mp_model: MpModel = 1,
 ) -> dict[str, str]:
-    """Async SNMP WALK v1arch style."""
+    """Async SNMP WALK using non-blocking API."""
     results: dict[str, str] = {}
 
     try:
-        async for error_indication, error_status, error_index, var_binds in nextCmd(
-            _SNMP_ENGINE,
+        # Use next_cmd for the async API
+        async for error_indication, error_status, error_index, var_binds in next_cmd(
+            SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             UdpTransportTarget((host, 161), timeout=timeout, retries=retries),
             ContextData(),
@@ -84,7 +92,11 @@ async def async_snmp_walk(
             if error_indication:
                 raise ConnectionError(str(error_indication))
             if error_status:
+                # Break if the OID is not found, rather than raising an error for non-critical walks
+                if "noSuchName" in error_status.prettyPrint():
+                    break
                 raise ValueError(f"{error_status.prettyPrint()} at {error_index}")
+                
             for var_bind in var_binds:
                 oid, value = var_bind
                 results[str(oid)] = value.prettyPrint()
@@ -103,14 +115,15 @@ async def async_snmp_bulk(
     oid_list: list[str],
     timeout: int = 3,
     retries: int = 1,
-) -> dict[str, str]:
+    mp_model: MpModel = 1, # Added mp_model for consistency
+) -> dict[str, str | None]:
     """
-    Perform multiple SNMP GETs efficiently.
-    Returns {oid: value}.
+    Perform multiple SNMP GETs concurrently.
+    Returns {oid: value | None}.
     """
 
     tasks = [
-        async_snmp_get(hass, host, community, oid, timeout=timeout, retries=retries)
+        async_snmp_get(hass, host, community, oid, timeout=timeout, retries=retries, mp_model=mp_model)
         for oid in oid_list
     ]
 
