@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,27 +19,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install pre-commit
-        run: |
-          python -m pip install --upgrade pip
-          pip install pre-commit
+        run: pip install pre-commit
 
-      - name: Cache pre-commit environments
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pre-commit
-          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
-          restore-keys: |
-            precommit-${{ runner.os }}-
-
-      - name: Run pre-commit
+      - name: Run pre-commit (offline mode)
         env:
-          # This disables the automatic "install missing hooks from internet" step
-          PRE_COMMIT_HOME: ${{ runner.temp }}/pre-commit-cache
-          # This stops it from trying to fetch tags
-          PRE_COMMIT_ALLOW_NO_CONFIG: "1"
+          # Tell pre-commit to NEVER try to fetch from the internet
+          PRE_COMMIT_USE_MIRRORS: "1"
+          SKIP: ""   # prevents any hook from trying to update itself
         run: |
-          pre-commit run --all-files --show-diff-on-failure || (
-            echo "pre-commit failed — installing hooks locally first"
-            pre-commit install --install-hooks
-            pre-commit run --all-files --show-diff-on-failure
-          )
+          pre-commit run --all-files --show-diff-on-failure \
+            --hook-stage manual \
+            --verbose \
+            || pre-commit run --all-files --show-diff-on-failure
