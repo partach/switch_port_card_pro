@@ -8,8 +8,16 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
-
+from .const import (
+    DOMAIN,
+    CONF_HOST,
+    CONF_COMMUNITY,
+    CONF_PORTS,
+    CONF_INCLUDE_VLANS,
+    DEFAULT_PORTS,
+    DEFAULT_BASE_OIDS,
+    DEFAULT_SYSTEM_OIDS,
+)
 _LOGGER = logging.getLogger(__name__)
 
 # Required for config-flow-only integrations
