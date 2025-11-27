@@ -97,17 +97,16 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
-        """SNMP connectivity test with generous timeout for config flow."""
-        await self.hass.async_add_executor_job(
-            async_snmp_get, # Pass the function reference
-            self.hass,      # First argument: hass
-            host,           # Second argument: host
-            community,      # Third argument: community
-            "1.3.6.1.2.1.1.1.0",
-            timeout=10,
-            retries=2,
-            mp_model=1, # to be fixed later... this is v2c by default
-        )
+      """SNMP connectivity test — direct await, no executor nonsense."""
+      await async_snmp_get(
+        hass,
+        host,
+        community,
+        "1.3.6.1.2.1.1.5.0",   # sysName — more reliable than sysDescr
+        timeout=12,
+        retries=3,
+        mp_model=1,            # v2c
+      )
 
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry):
