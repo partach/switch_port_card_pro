@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-# IMPORTANT: Ensure pysnmp is in your manifest.json requirements
+# ha_blocking_import: pysnmp
 from pysnmp.hlapi import (
     SnmpEngine,
     CommunityData,
