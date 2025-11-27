@@ -16,7 +16,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 # ha_blocking_import: pysnmp
-from pysnmp.hlapi import (
+from pysnmp.hlapi.asyncio import (
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
