@@ -40,3 +40,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+    
+async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Called when options are changed — force full reload."""
+    await hass.config_entries.async_reload(entry.entry_id)
