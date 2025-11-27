@@ -5,7 +5,7 @@ import logging
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -36,7 +36,7 @@ from .const import (
     DEFAULT_SYSTEM_OIDS,
     DOMAIN,
 )
-from .snmp_helper import async_snmp_get, async_snmp_walk, async_snmp_bulk
+from .snmp_helper import async_snmp_walk, async_snmp_bulk
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +90,6 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             if self.include_vlans and self.base_oids.get("vlan"):
                 oids_to_walk.append("vlan")
 
-            raw_walk_results = {}
             tasks = []
             for key in oids_to_walk:
                 oid = self.base_oids.get(key)
