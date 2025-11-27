@@ -21,9 +21,8 @@ DEFAULT_BASE_OIDS = {
 
 DEFAULT_SYSTEM_OIDS = {
     "cpu": "1.3.6.1.4.1.2021.11.11.0",           # UCD-SNMP-MIB (Linux, many switches)
-    "cpu_zyxel": "1.3.6.1.4.1.890.1.5.8.59.32.1.1.1.8.0",   # Zyxel specific
+    "firmware": "1.3.6.1.4.1.890.1.5.1.1.1.0",   # firmware string
     "memory": "1.3.6.1.4.1.2021.4.6.0",           # UCD-SNMP-MIB total used
-    "memory_zyxel": "1.3.6.1.4.1.890.1.5.8.59.32.1.1.1.9.0",
     "uptime": "1.3.6.1.2.1.1.3.0",                 # sysUpTime (standard)
     "hostname": "1.3.6.1.2.1.1.5.0",               # sysName
 }
