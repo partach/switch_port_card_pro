@@ -162,8 +162,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "memory": self.system_oids.get("memory"),
                 "hostname": self.system_oids.get("hostname"),
                 "uptime": self.system_oids.get("uptime"),
-                "cpu_zyxel": self.system_oids.get("cpu_zyxel"),
-                "memory_zyxel": self.system_oids.get("memory_zyxel"),
+                "firmware": self.system_oids.get("firmware"),
             }
             
             oids_only = [oid for oid in system_oids_to_fetch.values() if oid]
@@ -255,7 +254,18 @@ class BandwidthSensor(SwitchPortBaseEntity):
         """Return the state of the sensor."""
         return self.coordinator.data.bandwidth_mbps if self.coordinator.data else None
 
+class FirmwareSensor(SwitchPortBaseEntity):
+    _attr_name = "Firmware"
+    _attr_icon = "mdi:chip"
 
+    def __init__(self, coordinator, entry_id):
+        super().__init__(coordinator, entry_id)
+        self._attr_unique_id = f"{entry_id}_firmware"
+
+    @property
+    def native_value(self):
+        return self.coordinator.data.system.get("firmware")
+        
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
 
@@ -422,9 +432,8 @@ async def async_setup_entry(
     # System OIDs must be mapped to their generic keys for the coordinator logic
     system_oids = {
         "cpu": entry.options.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
-        "cpu_zyxel": entry.options.get("oid_cpu_zyxel", DEFAULT_SYSTEM_OIDS.get("cpu_zyxel", "")),
         "memory": entry.options.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-        "memory_zyxel": entry.options.get("oid_memory_zyxel", DEFAULT_SYSTEM_OIDS.get("memory_zyxel", "")),
+        "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
         "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
     }
@@ -443,6 +452,7 @@ async def async_setup_entry(
     entities = [
         BandwidthSensor(coordinator, entry.entry_id),
         SystemCpuSensor(coordinator, entry.entry_id),
+        FirmwareSensor(coordinator, entry.entry_id),
         SystemMemorySensor(coordinator, entry.entry_id),
         SystemUptimeSensor(coordinator, entry.entry_id),
         SystemHostnameSensor(coordinator, entry.entry_id),
