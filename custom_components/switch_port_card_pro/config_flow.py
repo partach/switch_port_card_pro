@@ -107,7 +107,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             "1.3.6.1.2.1.1.1.0",
             timeout=10,
             retries=2,
-            mp_model=(0 if snmp_version == "v1" else 1),
+            mp_model=1, # to be fixed later... this is v2c by default
         )
 
     @staticmethod
