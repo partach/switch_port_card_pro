@@ -98,9 +98,16 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
-        """SNMP connectivity test."""
-        await async_snmp_get(hass, host, community, "1.3.6.1.2.1.1.5.0")
-
+        """SNMP connectivity test with generous timeout for config flow."""
+        await async_snmp_get(
+            hass,
+            host,
+            community,
+            "1.3.6.1.2.1.1.5.0",   # sysName — universal and reliable
+            timeout=10,           # ← was 3 → now 10 seconds
+            retries=3,            # ← extra retries
+            mp_model=1,           # ← force v2c (your switch is Zyxel XGS1935)
+        )
 
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry):
