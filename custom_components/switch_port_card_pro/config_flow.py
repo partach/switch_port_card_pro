@@ -75,6 +75,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     options={
                         CONF_PORTS: DEFAULT_PORTS,
                         CONF_INCLUDE_VLANS: False,
+                        "snmp_version": "v2c",
                         "oid_rx": DEFAULT_BASE_OIDS["rx"],
                         "oid_tx": DEFAULT_BASE_OIDS["tx"],
                         "oid_status": DEFAULT_BASE_OIDS["status"],
@@ -202,6 +203,10 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                     "oid_uptime",
                     default=current.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
                 ): str,
+                vol.Optional(
+                    "snmp_version",
+                    default=current.get("snmp_version", "v2c"),
+                ): vol.In({"v2c": "v2c", "v1": "v1"}),
             }
         )
 
