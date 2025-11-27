@@ -26,9 +26,44 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+    # Prevent double setup on reload
+    if entry.entry_id in hass.data.get(DOMAIN, {}):
+        return True
 
-    # This line is REQUIRED – loads sensor.py
+    host = entry.data[CONF_HOST]
+    community = entry.data[CONF_COMMUNITY]
+    ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
+    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
+    snmp_version = entry.options.get("snmp_version", "v2c")
+
+    base_oids = {
+        "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
+        "tx": entry.options.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
+        "status": entry.options.get("oid_status", DEFAULT_BASE_OIDS["status"]),
+        "speed": entry.options.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
+        "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
+        "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
+    }
+
+    system_oids = {
+        "cpu": entry.options.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
+        "memory": entry.options.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
+        "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
+        "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
+        "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
+    }
+
+    coordinator = SwitchPortCoordinator(
+        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans
+    )
+
+    # Store coordinator
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    # First refresh
+    await coordinator.async_config_entry_first_refresh()
+
+    # Forward to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
