@@ -28,17 +28,16 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration (YAML path – unused but required)."""
+    """Set up the integration (YAML path unused but required)."""
     hass.data.setdefault(DOMAIN, {})
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
-    # Prevent double setup on reload
-    if entry.entry_id in hass.data.get(DOMAIN, {}):
-        return True
 
+    hass.data[DOMAIN].pop(entry.entry_id, None)
+    
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
     ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
@@ -67,10 +66,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Store coordinator
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    hass.data[DOMAIN][entry.entry_id] = coordinator
 
     # First refresh
     await coordinator.async_config_entry_first_refresh()
+
+    entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     # Forward to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
