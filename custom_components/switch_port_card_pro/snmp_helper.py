@@ -26,7 +26,6 @@ _SNMP_ENGINE = SnmpEngine()
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
 
-
 async def async_snmp_get(
     hass,
     host: str,
@@ -86,6 +85,7 @@ async def async_snmp_walk(
     results: dict[str, str] = {}
 
     try:
+        engine = SnmpEngine() # to make sure we don't get cached stuff
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
