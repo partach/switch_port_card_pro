@@ -139,7 +139,11 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 user_input[CONF_PORTS] = [int(p) for p in user_input[CONF_PORTS]]
             
             # FIX: Use options=user_input to update options, and data=None to protect the main config.
-            return self.async_create_entry(title="", data=None, options=user_input)
+            try:
+                return self.async_create_entry(title="", data=None, options=user_input)
+            except Exception as err:
+                _LOGGER.exception("Error saving options: %s", err)
+                return self.async_abort(reason="Error storing input")            
 
         # Prepare for schema generation
         ports_dict = {str(i): str(i) for i in range(1, 65)}
