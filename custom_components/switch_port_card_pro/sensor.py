@@ -80,147 +80,147 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.include_vlans = include_vlans
         self.mp_model = 0 if snmp_version == "v1" else 1
         self.data = None
-async def _async_update_data(self) -> SwitchPortData:
-    """Fetch all data asynchronously."""
-    try:
-        # --- WALK PORT TABLES ---
-        oids_to_walk = ["rx", "tx", "status", "speed", "name"]
-        if self.include_vlans and self.base_oids.get("vlan"):
-            oids_to_walk.append("vlan")
-
-        tasks = []
-        for key in oids_to_walk:
-            oid = self.base_oids.get(key)
-            if oid:
-                tasks.append(
-                    async_snmp_walk(
-                        self.hass,
-                        self.host,
-                        self.community,
-                        oid,
-                        mp_model=self.mp_model,
-                    )
-                )
-
-        # ← THIS LINE IS CRITICAL: catch exceptions and empty results
-        walk_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Build safe walk_map — never trust raw results
-        walk_map: dict[str, dict[str, str]] = {}
-        for key, result in zip(oids_to_walk, walk_results):
-            if isinstance(result, Exception):
-                _LOGGER.error(
-                    "SNMP walk FAILED for %s (OID %s) on %s: %s",
-                    key,
-                    self.base_oids.get(key),
-                    self.host,
-                    result,
-                )
-                walk_map[key] = {}
-            elif not result and self.base_oids.get(key):
-                _LOGGER.warning(
-                    "SNMP walk returned EMPTY for %s (OID %s) on %s → using safe defaults",
-                    key,
-                    self.base_oids[key],
-                    self.host,
-                )
-                walk_map[key] = {}
-            else:
-                walk_map[key] = result
-
-        # --- Parse index → value ---
-        def parse_table(raw: dict[str, str], is_int: bool) -> dict[int, Any]:
-            result = {}
-            for oid, value in raw.items():
-                try:
-                    idx = int(oid.split(".")[-1])
-                    result[idx] = int(value) if is_int else value
-                except (ValueError, IndexError):
-                    continue
-            return result
-
-        rx = parse_table(walk_map.get("rx", {}), True)
-        tx = parse_table(walk_map.get("tx", {}), True)
-        status = parse_table(walk_map.get("status", {}), True)
-        speed = parse_table(walk_map.get("speed", {}), True)
-        name = parse_table(walk_map.get("name", {}), False)
-        vlan = parse_table(walk_map.get("vlan", {}), True)
-
-        # --- Build per-port data with SAFE DEFAULTS ---
-        ports_data: dict[str, dict[str, Any]] = {}
-        total_rx = total_tx = 0
-
-        for port in self.ports:
-            port_str = str(port)
-
-            # Start with safe "everything off / unknown"
-            ports_data[port_str] = {
-                "status": "off",
-                "speed": 0,
-                "rx": 0,
-                "tx": 0,
-                "name": f"Port {port}",
-                "vlan": None,
-            }
-
-            # Only update if we actually have data for this port
-            if port in status or port in speed or port in rx or port in tx:
-                raw_status = status.get(port, 2)  # 2 = down
-                is_up = raw_status == 1
-
-                ports_data[port_str].update({
-                    "status": "on" if is_up else "off",
-                    "speed": speed.get(port, 0),
-                    "rx": rx.get(port, 0),
-                    "tx": tx.get(port, 0),
-                    "name": name.get(port, f"Port {port}"),
-                    "vlan": vlan.get(port),
-                })
-
-                total_rx += rx.get(port, 0)
-                total_tx += tx.get(port, 0)
-
-        bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
-
-        # --- System OIDs (unchanged — already perfect) ---
-        system_oids_to_fetch = {
-            "cpu": self.system_oids.get("cpu"),
-            "memory": self.system_oids.get("memory"),
-            "hostname": self.system_oids.get("hostname"),
-            "uptime": self.system_oids.get("uptime"),
-            "firmware": self.system_oids.get("firmware"),
-        }
-        oids_only = [oid for oid in system_oids_to_fetch.values() if oid]
-        raw_system_results = await async_snmp_bulk(
-            self.hass, self.host, self.community, oids_only, mp_model=self.mp_model
-        )
-
-        def get_oid_value(key_list: List[str]):
-            for key in key_list:
-                oid = self.system_oids.get(key)
+    async def _async_update_data(self) -> SwitchPortData:
+        """Fetch all data asynchronously."""
+        try:
+            # --- WALK PORT TABLES ---
+            oids_to_walk = ["rx", "tx", "status", "speed", "name"]
+            if self.include_vlans and self.base_oids.get("vlan"):
+                oids_to_walk.append("vlan")
+    
+            tasks = []
+            for key in oids_to_walk:
+                oid = self.base_oids.get(key)
                 if oid:
-                    value = next((v for k, v in raw_system_results.items() if k.startswith(oid)), None)
-                    if value is not None:
-                        return value
-            return None
-
-        system: dict[str, str | None] = {
-            "cpu": get_oid_value(["cpu", "cpu_zyxel"]),
-            "memory": get_oid_value(["memory", "memory_zyxel"]),
-            "hostname": get_oid_value(["hostname"]),
-            "uptime": get_oid_value(["uptime"]),
-            "firmware": get_oid_value(["firmware"]),
-        }
-
-        return SwitchPortData(
-            ports=ports_data,
-            bandwidth_mbps=bandwidth_mbps,
-            system=system,
-        )
-
-    except Exception as err:
-        _LOGGER.exception("Unexpected error fetching data from %s", self.host)
-        raise UpdateFailed(f"Error communicating with {self.host}: {err}") from err
+                    tasks.append(
+                        async_snmp_walk(
+                            self.hass,
+                            self.host,
+                            self.community,
+                            oid,
+                            mp_model=self.mp_model,
+                        )
+                    )
+    
+            # ← THIS LINE IS CRITICAL: catch exceptions and empty results
+            walk_results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+            # Build safe walk_map — never trust raw results
+            walk_map: dict[str, dict[str, str]] = {}
+            for key, result in zip(oids_to_walk, walk_results):
+                if isinstance(result, Exception):
+                    _LOGGER.error(
+                        "SNMP walk FAILED for %s (OID %s) on %s: %s",
+                        key,
+                        self.base_oids.get(key),
+                        self.host,
+                        result,
+                    )
+                    walk_map[key] = {}
+                elif not result and self.base_oids.get(key):
+                    _LOGGER.warning(
+                        "SNMP walk returned EMPTY for %s (OID %s) on %s → using safe defaults",
+                        key,
+                        self.base_oids[key],
+                        self.host,
+                    )
+                    walk_map[key] = {}
+                else:
+                    walk_map[key] = result
+    
+            # --- Parse index → value ---
+            def parse_table(raw: dict[str, str], is_int: bool) -> dict[int, Any]:
+                result = {}
+                for oid, value in raw.items():
+                    try:
+                        idx = int(oid.split(".")[-1])
+                        result[idx] = int(value) if is_int else value
+                    except (ValueError, IndexError):
+                        continue
+                return result
+    
+            rx = parse_table(walk_map.get("rx", {}), True)
+            tx = parse_table(walk_map.get("tx", {}), True)
+            status = parse_table(walk_map.get("status", {}), True)
+            speed = parse_table(walk_map.get("speed", {}), True)
+            name = parse_table(walk_map.get("name", {}), False)
+            vlan = parse_table(walk_map.get("vlan", {}), True)
+    
+            # --- Build per-port data with SAFE DEFAULTS ---
+            ports_data: dict[str, dict[str, Any]] = {}
+            total_rx = total_tx = 0
+    
+            for port in self.ports:
+                port_str = str(port)
+    
+                # Start with safe "everything off / unknown"
+                ports_data[port_str] = {
+                    "status": "off",
+                    "speed": 0,
+                    "rx": 0,
+                    "tx": 0,
+                    "name": f"Port {port}",
+                    "vlan": None,
+                }
+    
+                # Only update if we actually have data for this port
+                if port in status or port in speed or port in rx or port in tx:
+                    raw_status = status.get(port, 2)  # 2 = down
+                    is_up = raw_status == 1
+    
+                    ports_data[port_str].update({
+                        "status": "on" if is_up else "off",
+                        "speed": speed.get(port, 0),
+                        "rx": rx.get(port, 0),
+                        "tx": tx.get(port, 0),
+                        "name": name.get(port, f"Port {port}"),
+                        "vlan": vlan.get(port),
+                    })
+    
+                    total_rx += rx.get(port, 0)
+                    total_tx += tx.get(port, 0)
+    
+            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
+    
+            # --- System OIDs (unchanged — already perfect) ---
+            system_oids_to_fetch = {
+                "cpu": self.system_oids.get("cpu"),
+                "memory": self.system_oids.get("memory"),
+                "hostname": self.system_oids.get("hostname"),
+                "uptime": self.system_oids.get("uptime"),
+                "firmware": self.system_oids.get("firmware"),
+            }
+            oids_only = [oid for oid in system_oids_to_fetch.values() if oid]
+            raw_system_results = await async_snmp_bulk(
+                self.hass, self.host, self.community, oids_only, mp_model=self.mp_model
+            )
+    
+            def get_oid_value(key_list: List[str]):
+                for key in key_list:
+                    oid = self.system_oids.get(key)
+                    if oid:
+                        value = next((v for k, v in raw_system_results.items() if k.startswith(oid)), None)
+                        if value is not None:
+                            return value
+                return None
+    
+            system: dict[str, str | None] = {
+                "cpu": get_oid_value(["cpu", "cpu_zyxel"]),
+                "memory": get_oid_value(["memory", "memory_zyxel"]),
+                "hostname": get_oid_value(["hostname"]),
+                "uptime": get_oid_value(["uptime"]),
+                "firmware": get_oid_value(["firmware"]),
+            }
+    
+            return SwitchPortData(
+                ports=ports_data,
+                bandwidth_mbps=bandwidth_mbps,
+                system=system,
+            )
+    
+        except Exception as err:
+            _LOGGER.exception("Unexpected error fetching data from %s", self.host)
+            raise UpdateFailed(f"Error communicating with {self.host}: {err}") from err
 
 # =============================================================================
 # Entities
