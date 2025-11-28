@@ -87,25 +87,18 @@ async def async_snmp_walk(
     mp_model: MpModel = 1,
 ) -> dict[str, str]:
     """
-    Async SNMP WALK.
-    Returns {full_oid: value} for all OIDs under base_oid.
-    Added extensive logging to debug data not being returned.
+    FINAL WALK
     """
-    _LOGGER.debug(
-        "Attempting SNMP WALK on %s for OID %s (v%s)",
-        host,
-        base_oid,
-        "2c" if mp_model == 1 else "1",
-    )
     results: dict[str, str] = {}
+    transport = None
+
     try:
-        # Create transport target with timeout/retries
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
 
-        # next_cmd returns an awaitable iterator
-        iterator = next_cmd(
+        # THE ONLY CORRECT WAY IN 2025 — DO NOT CHANGE
+        cmd_gen = next_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
@@ -113,47 +106,39 @@ async def async_snmp_walk(
             ObjectType(ObjectIdentity(base_oid)),
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
+            maxRows=50,  # Prevent huge responses from killing us
         )
 
-        # Loop over the results
-        async for error_indication, error_status, error_index, var_binds in await iterator:
+        # AWAIT + ASYNC FOR
+        async for error_indication, error_status, error_index, var_binds in cmd_gen:
             if error_indication:
-                _LOGGER.debug(
-                    "SNMP WALK error indication for %s: %s",
-                    base_oid,
-                    error_indication,
-                )
+                _LOGGER.debug("SNMP WALK stopped: %s", error_indication)
                 break
             if error_status:
-                _LOGGER.debug(
-                    "SNMP WALK finished for %s with error status: %s",
-                    base_oid,
-                    error_status.prettyPrint(),
-                )
-                break  # End of MIB (expected)
+                # This is NORMAL — means "end of MIB view"
+                if error_status == 2:  # noSuchName = end of walk
+                    break
+                _LOGGER.debug("SNMP WALK ended: %s", error_status.prettyPrint())
+                break
 
-            for name, val in var_binds:
-                oid_str = str(name)
-                val_str = val.prettyPrint()
-                results[oid_str] = val_str
-                # Log first few results to confirm data flow
-                if len(results) < 5:
-                    _LOGGER.debug("SNMP WALK data: %s = %s", oid_str, val_str)
+            for oid, val in var_binds:
+                oid_str = str(oid)
+                if not oid_str.startswith(base_oid):
+                    continue  # Safety
+                results[oid_str] = val.prettyPrint()
 
-    except Exception as exc:
-        _LOGGER.debug(
-            "SNMP WALK failed on %s (%s): %s. Returning empty results.",
-            host,
-            base_oid,
-            exc,
-        )
+    except asyncio.TimeoutError:
+        _LOGGER.debug("SNMP WALK timeout on %s for %s", host, base_oid)
+    except Exception as e:
+        _LOGGER.debug("SNMP WALK exception on %s (%s): %s", host, base_oid, e)
+    finally:
+        if transport:
+            try:
+                await transport.close()
+            except:
+                pass
 
-    _LOGGER.debug(
-        "SNMP WALK on %s for OID %s completed. Found %d items.",
-        host,
-        base_oid,
-        len(results),
-    )
+    _LOGGER.debug("SNMP WALK %s → %d results", base_oid, len(results))
     return results
 
 
