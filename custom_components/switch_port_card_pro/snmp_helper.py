@@ -18,6 +18,9 @@ from pysnmp.hlapi.v3arch.asyncio import (
 _LOGGER = logging.getLogger(__name__)
 _SNMP_ENGINE = SnmpEngine()
 
+# KILL MIB LOADING — THIS IS THE HOLY GRAIL
+_SNMP_ENGINE.getMibBuilder().setMibSources()  # ← NO MORE BLOCKING I/O EVER
+
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
 
