@@ -85,7 +85,7 @@ async def async_snmp_walk(
     results: dict[str, str] = {}
 
     try:
-        engine = SnmpEngine() # to make sure we don't get cached stuff
+        # engine = SnmpEngine() # to make sure we don't get cached stuff but is only for pysnmp-lextudio 7.x (and we are using pysnmp)
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
