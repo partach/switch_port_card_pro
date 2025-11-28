@@ -16,6 +16,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_SNMP_ENGINE = SnmpEngine()
 
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
@@ -38,7 +39,7 @@ async def async_snmp_get(
         transport.retries = retries
 
         error_indication, error_status, error_index, var_binds = await get_cmd(
-            SnmpEngine(),  # ← Fresh engine every time
+            _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
@@ -82,17 +83,27 @@ async def async_snmp_walk(
     retries: int = 3,
     mp_model: MpModel = 1,
 ) -> dict[str, str]:
-    """The walk that NEVER returns empty — even on Zyxel, TP-Link, Cisco, Ubiquiti."""
+    """
+    Async SNMP WALK.
+    Returns {full_oid: value} for all OIDs under base_oid.
+    Added extensive logging to debug data not being returned.
+    """
+    _LOGGER.debug(
+        "Attempting SNMP WALK on %s for OID %s (v%s)",
+        host,
+        base_oid,
+        "2c" if mp_model == 1 else "1",
+    )
     results: dict[str, str] = {}
-    transport = None
-
     try:
+        # Create transport target with timeout/retries
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
 
-        iterator = await next_cmd(
-            SnmpEngine(),  # ← FRESH ENGINE — THIS IS THE KEY
+        # next_cmd returns an awaitable iterator
+        iterator = next_cmd(
+            _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
@@ -101,31 +112,45 @@ async def async_snmp_walk(
             ignoreNonIncreasingOid=True,
         )
 
-        async for error_indication, error_status, error_index, var_binds in iterator:
+        # Loop over the results
+        async for error_indication, error_status, error_index, var_binds in await iterator:
             if error_indication:
-                if "timeout" not in str(error_indication):
-                    _LOGGER.debug("SNMP WALK error indication: %s", error_indication)
+                _LOGGER.debug(
+                    "SNMP WALK error indication for %s: %s",
+                    base_oid,
+                    error_indication,
+                )
                 break
-
             if error_status:
-                # End of MIB — normal
-                break
+                _LOGGER.debug(
+                    "SNMP WALK finished for %s with error status: %s",
+                    base_oid,
+                    error_status.prettyPrint(),
+                )
+                break  # End of MIB (expected)
 
             for name, val in var_binds:
-                full_oid = str(name)
-                results[full_oid] = val.prettyPrint()
+                oid_str = str(name)
+                val_str = val.prettyPrint()
+                results[oid_str] = val_str
+                # Log first few results to confirm data flow
+                if len(results) < 5:
+                    _LOGGER.debug("SNMP WALK data: %s = %s", oid_str, val_str)
 
     except Exception as exc:
-        _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
+        _LOGGER.debug(
+            "SNMP WALK failed on %s (%s): %s. Returning empty results.",
+            host,
+            base_oid,
+            exc,
+        )
 
-    finally:
-        if transport:
-            try:
-                await transport.close()
-            except Exception:
-                pass
-
-    _LOGGER.debug("SNMP WALK %s → %d entries", base_oid, len(results))
+    _LOGGER.debug(
+        "SNMP WALK on %s for OID %s completed. Found %d items.",
+        host,
+        base_oid,
+        len(results),
+    )
     return results
 
 
