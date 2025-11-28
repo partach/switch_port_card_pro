@@ -87,6 +87,9 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_memory": DEFAULT_SYSTEM_OIDS.get("memory", ""),
                         "oid_hostname": DEFAULT_SYSTEM_OIDS.get("hostname", ""),
                         "oid_uptime": DEFAULT_SYSTEM_OIDS.get("uptime", ""),
+                        "oid_poe_power": DEFAULT_SYSTEM_OIDS.get("poe_power", ""),
+                        "oid_poe_status": DEFAULT_SYSTEM_OIDS.get("poe_status", ""),
+                        "oid_poe_total": DEFAULT_SYSTEM_OIDS.get("poe_total", ""),
                     },
                 )
 
@@ -109,6 +112,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
       )
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: ConfigEntry):
         """Return options flow."""
         return SwitchPortCardProOptionsFlow(config_entry)
@@ -138,9 +142,8 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             if CONF_PORTS in user_input and isinstance(user_input[CONF_PORTS], list):
                 user_input[CONF_PORTS] = [int(p) for p in user_input[CONF_PORTS]]
             
-            # FIX: Use options=user_input to update options, and data=None to protect the main config.
+
             try:
-                # return self.async_create_entry(title="", data=None, options=user_input) # this one does not work but should be the one??
                 return self.async_create_entry(title="", data=user_input)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
@@ -209,6 +212,18 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_uptime",
                     default=current.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
+                ): str,
+                vol.Optional(
+                    "oid_poe_power",
+                    default=current.get("oid_poe_power", DEFAULT_SYSTEM_OIDS.get("poe_power", "")),
+                ): str,
+                vol.Optional(
+                    "oid_poe_status",
+                    default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
+                ): str,
+                vol.Optional(
+                    "oid_poe_total",
+                    default=current.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
                 ): str,
                 vol.Optional(
                     "snmp_version",
