@@ -12,7 +12,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
     get_cmd,
-    next_cmd,
+    walk_cmd,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,18 +90,22 @@ async def async_snmp_walk(
     mp_model: MpModel = 1,
 ) -> dict[str, str]:
     """
-    FINAL WALK
+    Async SNMP WALK using the high-level walkCmd.
+    Returns {full_oid: value} for all OIDs under base_oid.
     """
     results: dict[str, str] = {}
     transport = None
 
     try:
+        # Create and configure transport
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
 
-        # THE ONLY CORRECT WAY IN 2025 — DO NOT CHANGE
-        cmd_gen = next_cmd(
+        # Use walk_cmd for the operation
+        # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
+        # But in v3arch.asyncio it returns an async iterator yielding these tuples
+        iterator = await walk_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
@@ -109,43 +113,38 @@ async def async_snmp_walk(
             ObjectType(ObjectIdentity(base_oid)),
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
-            maxRows=50,  # Prevent huge responses from killing us
         )
 
-        # AWAIT + ASYNC FOR
-        async for error_indication, error_status, error_index, var_binds in await cmd_gen:
+        async for error_indication, error_status, error_index, var_binds in iterator:
             if error_indication:
-                _LOGGER.debug("SNMP WALK stopped: %s", error_indication)
+                _LOGGER.debug("SNMP WALK error: %s", error_indication)
                 break
+            
             if error_status:
-                # This is NORMAL — means "end of MIB view"
-                if error_status == 2:  # noSuchName = end of walk
-                    break
-                _LOGGER.debug("SNMP WALK ended: %s", error_status.prettyPrint())
+                _LOGGER.debug("SNMP WALK error status: %s", error_status.prettyPrint())
                 break
 
-            for oid, val in var_binds:
+            for var_bind in var_binds:
+                oid, value = var_bind
                 oid_str = str(oid)
+                # Double-check we are still in the tree (walkCmd handles this but good for safety)
                 if not oid_str.startswith(base_oid):
-                    continue  # Safety
-                results[oid_str] = val.prettyPrint()
+                    break
+                results[oid_str] = value.prettyPrint()
 
-    except asyncio.TimeoutError:
-        _LOGGER.debug("SNMP WALK timeout on %s for %s", host, base_oid)
-    except Exception as e:
-        _LOGGER.debug("SNMP WALK exception on %s (%s): %s", host, base_oid, e)
+    except Exception as exc:
+        _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
+
     finally:
         if transport:
             try:
                 await transport.close()
-            except (asyncio.CancelledError, ConnectionError, OSError):
-                # These are expected during shutdown or network issues
+            except Exception:
                 pass
-            except Exception as exc:  # Only log unexpected ones
-                _LOGGER.debug("Unexpected error closing SNMP transport: %s", exc)
 
-    _LOGGER.debug("SNMP WALK %s → %d results", base_oid, len(results))
+    _LOGGER.debug("SNMP WALK %s -> %d entries", base_oid, len(results))
     return results
+
 
 
 async def async_snmp_bulk(
