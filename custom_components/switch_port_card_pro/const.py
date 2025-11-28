@@ -17,9 +17,9 @@ DEFAULT_BASE_OIDS = {
     "status": "1.3.6.1.2.1.2.2.1.8",
     "speed": "1.3.6.1.2.1.2.2.1.5",
     "name": "1.3.6.1.2.1.31.1.1.1.18",
-    "vlan": "1.3.6.1.4.1.9.9.68.1.2.2.1.2", 
     "poe_power": "1.3.6.1.4.1.9.9.91.1.1.1.1.4",   # per-port power draw in mW
     "poe_status": "1.3.6.1.2.1.105.1.1.1.3",  # 1=enabled, 2=disabled, etc.
+    "vlan": "1.3.6.1.4.1.9.9.68.1.2.2.1.2", 
 }
 # System-level OIDs (most common ones)
 # Users can override these in config_flow options
