@@ -79,7 +79,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.system_oids = system_oids
         self.include_vlans = include_vlans
         self.mp_model = 0 if snmp_version == "v1" else 1
-
+        self.data = None
     async def _async_update_data(self) -> SwitchPortData:
         """Fetch all data asynchronously."""
         try:
