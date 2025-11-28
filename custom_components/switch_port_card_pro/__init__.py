@@ -51,6 +51,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "speed": entry.options.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
         "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
         "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
+        "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
+        "poe_status": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_status", "")),
     }
 
     system_oids = {
@@ -59,6 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
         "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
+        "poe_total": entry.options.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
     }
 
     coordinator = SwitchPortCoordinator(
