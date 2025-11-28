@@ -1,34 +1,52 @@
-DOMAIN = "switch_port_card_pro"
+"""Constants for Switch Port Card Pro."""
 
-CONF_HOST = "host"
-CONF_COMMUNITY = "community"
-CONF_PORTS = "ports"
-CONF_INCLUDE_VLANS = "include_vlans"
-CONF_BASE_OIDS = "base_oids"
-CONF_POE_POWER_OID = "poe_power_oid"      # e.g. per-port PoE consumption
-CONF_POE_STATUS_OID = "poe_status_oid"    # e.g. PoE enabled/disabled per port
-CONF_POE_TOTAL_OID = "poe_total_oid"      # optional: total PoE budget used
-# Default number of ports (Tested Zyxel has 28)
-DEFAULT_PORTS = list(range(1, 29))
+from typing import Final
 
-DEFAULT_BASE_OIDS = {
-    "rx": "1.3.6.1.2.1.2.2.1.10",
-    "tx": "1.3.6.1.2.1.2.2.1.16",
-    "status": "1.3.6.1.2.1.2.2.1.8",
-    "speed": "1.3.6.1.2.1.2.2.1.5",
-    "name": "1.3.6.1.2.1.31.1.1.1.18",
-    "poe_power": "1.3.6.1.4.1.9.9.91.1.1.1.1.4",   # per-port power draw in mW
-    "poe_status": "1.3.6.1.2.1.105.1.1.1.3",  # 1=enabled, 2=disabled, etc.
-    "vlan": "1.3.6.1.4.1.9.9.68.1.2.2.1.2", 
+DOMAIN: Final = "switch_port_card_pro"
+
+# Config entry keys
+CONF_HOST: Final = "host"
+CONF_COMMUNITY: Final = "community"
+CONF_PORTS: Final = "ports"
+CONF_INCLUDE_VLANS: Final = "include_vlans"
+
+# Option keys (used in config flow)
+CONF_OID_RX: Final = "oid_rx"
+CONF_OID_TX: Final = "oid_tx"
+CONF_OID_STATUS: Final = "oid_status"
+CONF_OID_SPEED: Final = "oid_speed"
+CONF_OID_NAME: Final = "oid_name"
+CONF_OID_VLAN: Final = "oid_vlan"
+CONF_OID_POE_POWER: Final = "oid_poe_power"
+CONF_OID_POE_STATUS: Final = "oid_poe_status"
+CONF_OID_POE_TOTAL: Final = "oid_poe_total"
+CONF_OID_CPU: Final = "oid_cpu"
+CONF_OID_MEMORY: Final = "oid_memory"
+CONF_OID_FIRMWARE: Final = "oid_firmware"
+CONF_OID_HOSTNAME: Final = "oid_hostname"
+CONF_OID_UPTIME: Final = "oid_uptime"
+
+# Default monitored ports (1–28 is safe for most 24+4 switches)
+DEFAULT_PORTS: Final = list(range(1, 29))
+
+# Default per-port OIDs (standard + common working ones)
+DEFAULT_BASE_OIDS: Final = {
+    "rx": "1.3.6.1.2.1.2.2.1.10",        # ifInOctets (32-bit)
+    "tx": "1.3.6.1.2.1.2.2.1.16",        # ifOutOctets (32-bit)
+    "status": "1.3.6.1.2.1.2.2.1.8",     # ifOperStatus
+    "speed": "1.3.6.1.2.1.2.2.1.5",      # ifSpeed
+    "name": "1.3.6.1.2.1.31.1.1.1.18",   # ifAlias (modern description)
+    "vlan": "",                          # User must set per-brand (e.g. Q-BRIDGE-MIB or private)
+    "poe_power": "",                     # User must set (common: Cisco/Zyxel/TP-Link)
+    "poe_status": "",                    # User must set
 }
-# System-level OIDs (most common ones)
-# Users can override these in config_flow options
 
-DEFAULT_SYSTEM_OIDS = {
-    "cpu": "1.3.6.1.4.1.2021.11.11.0",           # UCD-SNMP-MIB (Linux, many switches)
-    "firmware": "1.3.6.1.4.1.890.1.5.1.1.1.0",   # firmware string
-    "memory": "1.3.6.1.4.1.2021.4.6.0",           # UCD-SNMP-MIB total used
-    "uptime": "1.3.6.1.2.1.1.3.0",                 # sysUpTime (standard)
-    "hostname": "1.3.6.1.2.1.1.5.0",               # sysName
-    "poe_total": "1.3.6.1.4.1.9.9.91.1.2.1.1.5",   # total PoE consumption
+# Default system-level OIDs (most common working ones)
+DEFAULT_SYSTEM_OIDS: Final = {
+    "cpu": "",                           # Usually private — user sets
+    "memory": "",                        # Usually private
+    "firmware": "",                      # Usually private
+    "hostname": "1.3.6.1.2.1.1.5.0",     # sysName — works everywhere
+    "uptime": "1.3.6.1.2.1.1.3.0",       # sysUpTime — universal
+    "poe_total": "",                     # Usually private — user sets
 }
