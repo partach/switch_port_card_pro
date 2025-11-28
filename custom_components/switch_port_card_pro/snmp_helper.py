@@ -91,7 +91,7 @@ async def async_snmp_walk(
         transport.timeout = timeout
         transport.retries = retries
 
-        iterator = next_cmd(
+        iterator = await next_cmd(
             SnmpEngine(),  # ← FRESH ENGINE — THIS IS THE KEY
             CommunityData(community, mpModel=mp_model),
             transport,
