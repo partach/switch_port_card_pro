@@ -1,11 +1,10 @@
 """Async sensor platform for Switch Port Card Pro."""
 from __future__ import annotations
-
 import logging
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -39,33 +38,28 @@ from .const import (
 from .snmp_helper import async_snmp_walk, async_snmp_bulk
 
 _LOGGER = logging.getLogger(__name__)
-
-UPDATE_INTERVAL = timedelta(seconds=30)
+UPDATE_INTERVAL = timedelta(seconds=20)
 
 
 @dataclass
 class SwitchPortData:
-    """Data returned by coordinator."""
     ports: dict[str, dict[str, Any]]
     bandwidth_mbps: float
-    system: dict[str, str | None]
+    system: dict[str, Any]
 
 
 class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
-    """Fetch data from the switch."""
-
     def __init__(
         self,
         hass: HomeAssistant,
         host: str,
         community: str,
-        ports: List[int],
+        ports: list[int],
         base_oids: dict[str, str],
         system_oids: dict[str, str],
         snmp_version: str,
         include_vlans: bool,
     ) -> None:
-        """Initialize coordinator."""
         super().__init__(
             hass,
             _LOGGER,
@@ -79,148 +73,111 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.system_oids = system_oids
         self.include_vlans = include_vlans
         self.mp_model = 0 if snmp_version == "v1" else 1
-        self.data = None
+
     async def _async_update_data(self) -> SwitchPortData:
-        """Fetch all data asynchronously."""
         try:
-            # --- WALK PORT TABLES ---
-            oids_to_walk = ["rx", "tx", "status", "speed", "name"]
+            # === PORT WALKS ===
+            oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status"]
             if self.include_vlans and self.base_oids.get("vlan"):
                 oids_to_walk.append("vlan")
-    
-            tasks = []
-            for key in oids_to_walk:
-                oid = self.base_oids.get(key)
-                if oid:
-                    tasks.append(
-                        async_snmp_walk(
-                            self.hass,
-                            self.host,
-                            self.community,
-                            oid,
-                            mp_model=self.mp_model,
-                        )
-                    )
-    
-            # ← THIS LINE IS CRITICAL: catch exceptions and empty results
-            walk_results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-            # Build safe walk_map — never trust raw results
+
+            tasks = [
+                async_snmp_walk(self.hass, self.host, self.community, self.base_oids[k], mp_model=self.mp_model)
+                for k in oids_to_walk if self.base_oids.get(k)
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
             walk_map: dict[str, dict[str, str]] = {}
-            for key, result in zip(oids_to_walk, walk_results):
+            for key, result in zip([k for k in oids_to_walk if self.base_oids.get(k)], results):
                 if isinstance(result, Exception):
-                    _LOGGER.error(
-                        "SNMP walk FAILED for %s (OID %s) on %s: %s",
-                        key,
-                        self.base_oids.get(key),
-                        self.host,
-                        result,
-                    )
+                    _LOGGER.error("SNMP walk failed for %s: %s", key, result)
                     walk_map[key] = {}
-                elif not result and self.base_oids.get(key):
-                    _LOGGER.warning(
-                        "SNMP walk returned EMPTY for %s (OID %s) on %s → using safe defaults",
-                        key,
-                        self.base_oids[key],
-                        self.host,
-                    )
+                elif not result:
+                    _LOGGER.warning("SNMP walk empty for %s → using defaults", key)
                     walk_map[key] = {}
                 else:
                     walk_map[key] = result
-    
-            # --- Parse index → value ---
-            def parse_table(raw: dict[str, str], is_int: bool) -> dict[int, Any]:
-                result = {}
-                for oid, value in raw.items():
+
+            def parse(raw: dict[str, str], int_val: bool = True) -> dict[int, Any]:
+                out = {}
+                for oid, val in raw.items():
                     try:
                         idx = int(oid.split(".")[-1])
-                        result[idx] = int(value) if is_int else value
+                        out[idx] = int(val) if int_val else val
                     except (ValueError, IndexError):
                         continue
-                return result
-    
-            rx = parse_table(walk_map.get("rx", {}), True)
-            tx = parse_table(walk_map.get("tx", {}), True)
-            status = parse_table(walk_map.get("status", {}), True)
-            speed = parse_table(walk_map.get("speed", {}), True)
-            name = parse_table(walk_map.get("name", {}), False)
-            vlan = parse_table(walk_map.get("vlan", {}), True)
-    
-            # --- Build per-port data with SAFE DEFAULTS ---
+                return out
+
+            rx = parse(walk_map.get("rx", {}))
+            tx = parse(walk_map.get("tx", {}))
+            status = parse(walk_map.get("status", {}))
+            speed = parse(walk_map.get("speed", {}))
+            name = parse(walk_map.get("name", {}), int_val=False)
+            vlan = parse(walk_map.get("vlan", {}))
+            poe_power = parse(walk_map.get("poe_power", {}))
+            poe_status = parse(walk_map.get("poe_status", {}))
+
             ports_data: dict[str, dict[str, Any]] = {}
-            total_rx = total_tx = 0
-    
+            total_rx = total_tx = total_poe_mw = 0
+
             for port in self.ports:
-                port_str = str(port)
-    
-                # Start with safe "everything off / unknown"
-                ports_data[port_str] = {
+                p = str(port)
+                ports_data[p] = {
                     "status": "off",
                     "speed": 0,
                     "rx": 0,
                     "tx": 0,
                     "name": f"Port {port}",
                     "vlan": None,
+                    "poe_power": 0,
+                    "poe_status": 0,
                 }
-    
-                # Only update if we actually have data for this port
-                if port in status or port in speed or port in rx or port in tx:
-                    raw_status = status.get(port, 2)  # 2 = down
-                    is_up = raw_status == 1
-    
-                    ports_data[port_str].update({
-                        "status": "on" if is_up else "off",
+
+                if any(port in t for t in (status, speed, rx, tx, poe_power)):
+                    ports_data[p].update({
+                        "status": "on" if status.get(port, 2) == 1 else "off",
                         "speed": speed.get(port, 0),
                         "rx": rx.get(port, 0),
                         "tx": tx.get(port, 0),
                         "name": name.get(port, f"Port {port}"),
                         "vlan": vlan.get(port),
+                        "poe_power": poe_power.get(port, 0),
+                        "poe_status": poe_status.get(port, 0),
                     })
-    
                     total_rx += rx.get(port, 0)
                     total_tx += tx.get(port, 0)
-    
+                    total_poe_mw += poe_power.get(port, 0)
+
             bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
-    
-            # --- System OIDs (unchanged — already perfect) ---
-            system_oids_to_fetch = {
-                "cpu": self.system_oids.get("cpu"),
-                "memory": self.system_oids.get("memory"),
-                "hostname": self.system_oids.get("hostname"),
-                "uptime": self.system_oids.get("uptime"),
-                "firmware": self.system_oids.get("firmware"),
-            }
-            oids_only = [oid for oid in system_oids_to_fetch.values() if oid]
-            raw_system_results = await async_snmp_bulk(
-                self.hass, self.host, self.community, oids_only, mp_model=self.mp_model
+
+            # === SYSTEM OIDs ===
+            raw_system = await async_snmp_bulk(
+                self.hass,
+                self.host,
+                self.community,
+                [oid for oid in self.system_oids.values() if oid],
+                mp_model=self.mp_model,
             )
-    
-            def get_oid_value(key_list: List[str]):
-                for key in key_list:
-                    oid = self.system_oids.get(key)
-                    if oid:
-                        value = next((v for k, v in raw_system_results.items() if k.startswith(oid)), None)
-                        if value is not None:
-                            return value
-                return None
-    
-            system: dict[str, str | None] = {
-                "cpu": get_oid_value(["cpu", "cpu_zyxel"]),
-                "memory": get_oid_value(["memory", "memory_zyxel"]),
-                "hostname": get_oid_value(["hostname"]),
-                "uptime": get_oid_value(["uptime"]),
-                "firmware": get_oid_value(["firmware"]),
+
+            def get(oid_key: str) -> str | None:
+                oid = self.system_oids.get(oid_key)
+                return next((v for k, v in raw_system.items() if oid and k.startswith(oid)), None)
+
+            system = {
+                "cpu": get("cpu") or get("cpu_zyxel"),
+                "memory": get("memory") or get("memory_zyxel"),
+                "hostname": get("hostname"),
+                "uptime": get("uptime"),
+                "firmware": get("firmware"),
+                "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
+                "poe_total_raw": get("poe_total"),
             }
-    
-            return SwitchPortData(
-                ports=ports_data,
-                bandwidth_mbps=bandwidth_mbps,
-                system=system,
-            )
-    
+
+            return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
+
         except Exception as err:
-            _LOGGER.exception("Unexpected error fetching data from %s", self.host)
-            raise UpdateFailed(f"Error communicating with {self.host}: {err}") from err
+            _LOGGER.exception("Update failed for %s", self.host)
+            raise UpdateFailed(str(err)) from err
 
 # =============================================================================
 # Entities
@@ -257,7 +214,20 @@ class SwitchPortBaseEntity(SensorEntity):
         await super().async_will_remove_from_hass()
 
 # --- Aggregate and Port Sensors ---
+class TotalPoESensor(SwitchPortBaseEntity):
+    _attr_name = "Total PoE Power"
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
+    def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str) -> None:
+        super().__init__(coordinator, entry_id)
+        self._attr_unique_id = f"{entry_id}_total_poe"
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.data.system.get("poe_total_watts") if self.coordinator.data else None
+        
 class BandwidthSensor(SwitchPortBaseEntity):
     """Total bandwidth sensor."""
 
@@ -311,26 +281,21 @@ class PortStatusSensor(SwitchPortBaseEntity):
         return "mdi:lan-connect" if self.native_value == "on" else "mdi:lan-disconnect"
 
     @property
-    def extra_state_attributes(self) -> Dict[str, Any] | None:
-        """Return the state attributes (speed, traffic, name, vlan)."""
+    def extra_state_attributes(self) -> dict[str, Any]:
         if not self.coordinator.data:
-            return None
-        port_data = self.coordinator.data.ports.get(self.port, {})
-        
-        # Convert raw bytes/s to Mb/s for display
-        rx_bps = port_data.get("rx", 0) * 8
-        tx_bps = port_data.get("tx", 0) * 8
-        
+            return {}
+        p = self.coordinator.data.ports.get(self.port, {})
         attrs = {
-            "port_name": port_data.get("name"),
-            "speed_bps": port_data.get("speed"), # Raw speed in bps
-            "rx_bps": rx_bps,
-            "tx_bps": tx_bps,
+            "port_name": p.get("name"),
+            "speed_bps": p.get("speed"),
+            "rx_bps": p.get("rx", 0) * 8,
+            "tx_bps": p.get("tx", 0) * 8,
+            "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
+            "poe_enabled": p.get("poe_status") in (1, 2, 4),
+            "poe_class": p.get("poe_status"),
         }
-        
-        if self.coordinator.include_vlans and port_data.get("vlan") is not None:
-            attrs["vlan_id"] = port_data.get("vlan")
-            
+        if self.coordinator.include_vlans and p.get("vlan") is not None:
+            attrs["vlan_id"] = p["vlan"]
         return attrs
 
 
@@ -449,6 +414,8 @@ async def async_setup_entry(
         "speed": entry.options.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
         "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
         "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
+        "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
+        "poe_status": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_status", "")),
     }
 
     # System OIDs must be mapped to their generic keys for the coordinator logic
@@ -458,6 +425,7 @@ async def async_setup_entry(
         "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
         "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
+        "poe_total": entry.options.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
     }
 
     coordinator = SwitchPortCoordinator(
@@ -473,6 +441,7 @@ async def async_setup_entry(
     # Create entities
     entities = [
         BandwidthSensor(coordinator, entry.entry_id),
+        TotalPoESensor(coordinator, entry.entry_id),
         SystemCpuSensor(coordinator, entry.entry_id),
         FirmwareSensor(coordinator, entry.entry_id),
         SystemMemorySensor(coordinator, entry.entry_id),
