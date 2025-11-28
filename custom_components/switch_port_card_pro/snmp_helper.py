@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 _SNMP_ENGINE = SnmpEngine()
 
 # KILL MIB LOADING — THIS IS THE HOLY GRAIL
-_SNMP_ENGINE.getMibBuilder().setMibSources()  # ← NO MORE BLOCKING I/O EVER
+_SNMP_ENGINE.get_mib_builder().setMibSources()  # ← NO MORE BLOCKING I/O EVER
 
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
@@ -110,7 +110,7 @@ async def async_snmp_walk(
         )
 
         # AWAIT + ASYNC FOR
-        async for error_indication, error_status, error_index, var_binds in cmd_gen:
+        async for error_indication, error_status, error_index, var_binds in await cmd_gen:
             if error_indication:
                 _LOGGER.debug("SNMP WALK stopped: %s", error_indication)
                 break
