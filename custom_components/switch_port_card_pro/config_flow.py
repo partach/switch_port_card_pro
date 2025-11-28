@@ -140,7 +140,8 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             
             # FIX: Use options=user_input to update options, and data=None to protect the main config.
             try:
-                return self.async_create_entry(title="", data=None, options=user_input)
+                # return self.async_create_entry(title="", data=None, options=user_input) # this one does not work but should be the one??
+                return self.async_create_entry(title="", data=user_input)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
                 return self.async_abort(reason="Error storing input")            
