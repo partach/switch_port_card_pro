@@ -100,7 +100,7 @@ async def async_snmp_walk(
             ignoreNonIncreasingOid=True,
         )
 
-        async for error_indication, error_status, error_index, var_binds in await iterator:
+        async for error_indication, error_status, error_index, var_binds in iterator:
             if error_indication:
                 _LOGGER.debug("SNMP WALK error indication: %s", error_indication)
                 break
