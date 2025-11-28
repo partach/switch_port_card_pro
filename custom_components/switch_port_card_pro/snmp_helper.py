@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 _SNMP_ENGINE = SnmpEngine()
 
 # KILL MIB LOADING — THIS IS THE HOLY GRAIL
-_SNMP_ENGINE.get_mib_builder().setMibSources()  # ← NO MORE BLOCKING I/O EVER
+_SNMP_ENGINE.get_mib_builder().set_mib_sources()  # ← NO MORE BLOCKING I/O EVER
 
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
