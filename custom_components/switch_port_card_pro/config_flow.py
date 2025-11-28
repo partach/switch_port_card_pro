@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
+from homeassistant.core import callback
 
 from .snmp_helper import async_snmp_get 
 from .const import (
