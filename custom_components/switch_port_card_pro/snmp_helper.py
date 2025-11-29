@@ -12,7 +12,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
     get_cmd,
-    next_cmd,
+    walk_cmd,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ async def async_snmp_walk(
         # Use walk_cmd for the operation
         # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
         # But in v3arch.asyncio it returns an async iterator yielding these tuples
-        iterator = await next_cmd(
+        iterator = walk_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
