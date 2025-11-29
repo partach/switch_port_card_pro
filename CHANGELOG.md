@@ -1,10 +1,14 @@
 # Changelog
-## 0.5.1 - Full Multi-Switch Support
+## [0.5.1] - Full Multi-Switch Support
 - Fixed unique ID conflicts when using multiple switches
 - Added proper device registry separation using entry_id
 - Dynamic device naming (hostname → config title → IP)
 - Real firmware and model in device info
 - 100% future-proof multi-instance support
+### Fixed
+- Multi instance handling with unique IDs
+### Documentation
+- bringing README up to date
   
 ## [0.5.0] – 2025-11-29
 ### Features
