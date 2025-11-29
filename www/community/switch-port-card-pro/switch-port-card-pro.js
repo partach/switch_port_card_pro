@@ -1,5 +1,5 @@
 // switch-port-card-pro.js
-// v1.0.0 — The One That Works. Forever.
+// v1.0.0 � The One That Works. Forever.
 
 class SwitchPortCardPro extends HTMLElement {
   constructor() {
@@ -27,7 +27,7 @@ class SwitchPortCardPro extends HTMLElement {
 
   setConfig(config) {
     this._config = {
-      name: "Network Switch,
+      name: "Network Switch",
       total_ports: 28,
       sfp_start_port: 25,
       show_total_bandwidth: true,
@@ -39,41 +39,99 @@ class SwitchPortCardPro extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    
+    // Initialize config with defaults if not set yet
+    if (!this._config) {
+      this._config = {
+        name: "Network Switch",
+        total_ports: 28,
+        sfp_start_port: 25,
+        show_total_bandwidth: true,
+        max_bandwidth_gbps: 100,
+        compact_mode: false
+      };
+    }
+    
     if (!this._entities || this._lastHass !== hass) {
-      this._entities = this._collectEntities();
+      this._entities = this._collectEntities(hass);
       this._lastHass = hass;
     }
     if (!this._root) this._createSkeleton();
     this._render();
   }
 
-  _collectEntities() {
+  _collectEntities(hass) {
     const entities = {};
     if (!this._config || (!this._config.device && !this._config.entity)) return entities;
 
     let deviceId = this._config.device;
-    if (!deviceId && this._config.entity) {
-      const ent = this._hass.states[this._config.entity];
-      if (ent?.attributes?.device_id) deviceId = ent.attributes.device_id;
+    let entityPrefix = null;
+    let deviceEntities = [];
+
+    // If device is selected, get entities from device registry
+    if (deviceId && hass.devices) {
+      const device = Object.values(hass.devices).find(d => d.id === deviceId);
+      if (device) {
+        // Get all entity_ids linked to this device
+        deviceEntities = Object.values(hass.entities)
+          .filter(e => e.device_id === deviceId)
+          .map(e => e.entity_id);
+        console.log("Found device entities:", deviceEntities);
+      }
     }
 
-    if (deviceId) {
-      Object.values(this._hass.states).forEach(entity => {
-        if (entity.attributes?.device_id !== deviceId) return;
-
-        const id = entity.entity_id;
-        if (id.includes("_total_bandwidth_mbps")) entities.bandwidth = entity;
-        else if (id.includes("_system_cpu")) entities.cpu = entity;
-        else if (id.includes("_system_memory")) entities.memory = entity;
-        else if (id.includes("_system_uptime")) entities.uptime = entity;
-        else if (id.includes("_system_hostname")) entities.hostname = entity;
-        else if (id.includes("_total_poe")) entities.total_poe = entity;
-        else if (id.includes("_port_") && id.includes("_status")) {
-          const match = id.match(/_port_(\d+)_status/);
-          if (match) entities[`port_${match[1]}_status`] = entity;
+    // Fallback to entity prefix if no device found
+    if (deviceEntities.length === 0 && this._config.entity) {
+      const ent = hass.states[this._config.entity];
+      if (ent?.attributes?.device_id) {
+        deviceId = ent.attributes.device_id;
+      } else {
+        // Extract prefix from entity name
+        const parts = this._config.entity.split("_total_bandwidth");
+        if (parts.length > 0) {
+          entityPrefix = parts[0] + "_";
         }
+      }
+    }
+
+    console.log("Collecting entities - Device ID:", deviceId, "Prefix:", entityPrefix);
+
+    // Search using device_id attribute (original method)
+    if (deviceId && deviceEntities.length === 0) {
+      Object.values(hass.states).forEach(entity => {
+        if (entity.attributes?.device_id !== deviceId) return;
+        deviceEntities.push(entity.entity_id);
       });
     }
+
+    // Match entities
+    const entitiesToSearch = deviceEntities.length > 0 ? deviceEntities : Object.keys(hass.states);
+    
+    entitiesToSearch.forEach(entityId => {
+      if (typeof entityId !== 'string') entityId = entityId;
+      
+      // If using prefix, filter first
+      if (entityPrefix && !entityId.startsWith(entityPrefix)) return;
+
+      const id = entityId;
+      const entity = hass.states[entityId];
+      
+      if (!entity) return;
+
+      if (id.includes("_total_bandwidth")) entities.bandwidth = entity;
+      else if (id.includes("_system_cpu") || id.includes("cpu_usage")) entities.cpu = entity;
+      else if (id.includes("_system_memory") || id.includes("memory_usage")) entities.memory = entity;
+      else if (id.includes("_system_uptime") || id.includes("uptime")) entities.uptime = entity;
+      else if (id.includes("_system_hostname") || id.includes("hostname")) entities.hostname = entity;
+      else if (id.includes("_total_poe") || id.includes("total_poe")) entities.total_poe = entity;
+      else if (id.includes("_firmware") || id.includes("firmware")) entities.firmware = entity;
+      else if (id.includes("_port_") && id.includes("_status")) {
+        const match = id.match(/_port_(\d+)_status/);
+        if (match) entities[`port_${match[1]}_status`] = entity;
+      }
+    });
+
+    console.log("Collected entities:", Object.keys(entities));
     return entities;
   }
 
@@ -92,8 +150,8 @@ class SwitchPortCardPro extends HTMLElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
-          font-size: 1.5em;
+          margin-bottom: 8px;
+          font-size: 1.2em;
           font-weight: 600;
         }
         .system-grid {
@@ -104,16 +162,16 @@ class SwitchPortCardPro extends HTMLElement {
         }
         .info-box {
           background: var(--primary-background-color, #f0f0f0);
-          padding: 10px;
+          padding: 4px;
           border-radius: 10px;
           text-align: center;
           border: 1px solid var(--divider-color);
         }
-        .info-value { font-size: 1.4em; font-weight: bold; }
-        .info-label { font-size: 0.8em; opacity: 0.8; }
+        .info-value { font-size: 1.2em; font-weight: bold; }
+        .info-label { font-size: 0.8em; opacity: 0.8; color: var(--secondary-text-color); }
 
         .gauge {
-          height: 24px;
+          height: 18px;
           background: var(--light-primary-color);
           border-radius: 12px;
           overflow: hidden;
@@ -133,9 +191,10 @@ class SwitchPortCardPro extends HTMLElement {
           transition: background-position 0.8s ease;
         }
 
-        .ports-section { margin-top: 20px; }
+        .ports-section { margin-top: 10px; }
         .section-label {
           font-size: 0.9em;
+          justify-content: center;
           font-weight: 600;
           color: var(--secondary-text-color);
           margin: 16px 0 8px;
@@ -154,7 +213,7 @@ class SwitchPortCardPro extends HTMLElement {
           justify-content: center;
           align-items: center;
           font-weight: bold;
-          font-size: 0.75em;
+          font-size: 0.8em;
           cursor: default;
           transition: all 0.2s ease;
           position: relative;
@@ -190,7 +249,7 @@ class SwitchPortCardPro extends HTMLElement {
       <ha-card>
         <div class="header">
           <span id="title">Switch</span>
-          <span id="bandwidth">— Mbps</span>
+          <span id="bandwidth"> Mbps</span>
         </div>
         <div class="system-grid" id="system"></div>
         <div class="gauge" id="gauge"><div class="gauge-fill" id="fill"></div></div>
@@ -202,11 +261,11 @@ class SwitchPortCardPro extends HTMLElement {
         </div>
       </ha-card>
     `;
-    this._root = true;
+    this._root = this.shadowRoot.querySelector(".header");
   }
 
   _formatTime(seconds) {
-    if (!seconds) return "—";
+    if (!seconds) return "�";
     const h = Math.floor(seconds / 3600);
     const d = Math.floor(h / 24);
     if (d > 0) return `${d}d ${h % 24}h`;
@@ -215,20 +274,29 @@ class SwitchPortCardPro extends HTMLElement {
   }
 
   _render() {
+    // Create skeleton first if it doesn't exist
+    if (!this._root) this._createSkeleton();
+
     if (!this._hass || !this._config) {
-      this.shadowRoot.querySelector(".header").innerHTML =
-        `<span style="color:var(--label-badge-orange)">Loading card...</span>`;
+      const header = this.shadowRoot.querySelector(".header");
+      if (header) {
+        header.innerHTML = `<span style="color:var(--label-badge-orange)">Loading card...</span>`;
+      }
+      return;
+    }
+    
+    if (Object.keys(this._entities || {}).length === 0) {
+      const header = this.shadowRoot.querySelector(".header");
+      if (header) {
+        header.innerHTML = `<span style="color:var(--label-badge-red)">Data not loaded yet check integration</span>`;
+      }
       return;
     }
 
-    if (Object.keys(this._entities || {}).length === 0) {
-      this.shadowRoot.querySelector(".header").innerHTML =
-        `<span style="color:var(--label-badge-red)">Data not loaded yet — check integration</span>`;
-      return;
-    }
     const bw = this._entities.bandwidth;
     const cpu = this._entities.cpu;
     const mem = this._entities.memory;
+    const firmware = this._entities.firmware;
     const uptime = this._entities.uptime;
     const host = this._entities.hostname;
     const poeTotal = this._entities.total_poe;
@@ -236,7 +304,7 @@ class SwitchPortCardPro extends HTMLElement {
     // Header
     const hostname = host?.state?.trim() || null;
     this.shadowRoot.getElementById("title").textContent = this._config.name || hostname || "Switch";
-    this.shadowRoot.getElementById("bandwidth").textContent = bw ? `${Number(bw.state).toFixed(1)} Mbps` : "— Mbps";
+    this.shadowRoot.getElementById("bandwidth").textContent = bw ? `${Number(bw.state/8000).toFixed(1)} MB/s` : " MB/s";
 
     // System info
     this.shadowRoot.getElementById("system").innerHTML = `
@@ -244,7 +312,8 @@ class SwitchPortCardPro extends HTMLElement {
       ${mem?.state ? `<div class="info-box"><div class="info-value">${Math.round(mem.state)}%</div><div class="info-label">Memory</div></div>` : ''}
       ${uptime?.state ? `<div class="info-box"><div class="info-value">${this._formatTime(Number(uptime.state))}</div><div class="info-label">Uptime</div></div>` : ''}
       ${host?.state ? `<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>` : ''}
-      ${poeTotal?.state ? `<div class="info-box"><div class="info-value">${poeTotal.state}W</div><div class="info-label">PoE Total</div></div>` : ''}
+      ${poeTotal?.state ? `<div class="info-box"><div class="info-value">${poeTotal.state} W</div><div class="info-label">PoE Total</div></div>` : ''}
+      ${firmware?.state ? `<div class="info-box"><div class="info-value;font-size:5px">${firmware.state}</div><div class="info-label">Firmware</div></div>` : ''}
     `;
 
     // Gauge
@@ -272,7 +341,7 @@ class SwitchPortCardPro extends HTMLElement {
       const state = ent?.state || "off";
       const isOn = state === "on";
 
-      const speedMbps = parseInt(ent?.attributes?.speed || "0");
+      const speedMbps = parseInt(ent?.attributes?.speed_bps / 1e6 || "0") || parseInt(ent?.attributes?.speed || "0");
       const rxBps = parseInt(ent?.attributes?.rx_bps || "0");
       const txBps = parseInt(ent?.attributes?.tx_bps || "0");
       const name = (ent?.attributes?.port_name?.trim() || `Port ${i}`);
@@ -315,17 +384,44 @@ class SwitchPortCardPro extends HTMLElement {
   }
 }
 
-// Editor (unchanged — already perfect)
+// Editor
 class SwitchPortCardProEditor extends HTMLElement {
   setConfig(config) {
-    this._config = config;
+    this._config = config || {
+      name: "Network Switch",
+      total_ports: 28,
+      sfp_start_port: 25,
+      show_total_bandwidth: true,
+      max_bandwidth_gbps: 100,
+      compact_mode: false
+    };
+  }
+
+  getConfig() {
+    return this._config;
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!hass) return;
+    
+    // Re-render if config changed
+    if (this._lastConfig === JSON.stringify(this._config)) return;
+    this._lastConfig = JSON.stringify(this._config);
+    
+    // Ensure _config exists
+    if (!this._config) {
+      this._config = {
+        name: "Network Switch",
+        total_ports: 28,
+        sfp_start_port: 25,
+        show_total_bandwidth: true,
+        max_bandwidth_gbps: 100,
+        compact_mode: false
+      };
+    }
 
-    // NEW WAY: Get devices from hass.entities that have device_id
+    // Get devices from hass.states that have device_id
     const deviceMap = {};
     Object.values(hass.states).forEach(entity => {
       const devId = entity.attributes?.device_id;
@@ -369,7 +465,6 @@ class SwitchPortCardProEditor extends HTMLElement {
               </option>
             `).join('')}
           </select>
-          <div class="help">Pick the device that runs Switch Port Card Pro</div>
         </div>
 
         <div class="row">
@@ -409,12 +504,12 @@ class SwitchPortCardProEditor extends HTMLElement {
         let value = el.type === "checkbox" ? el.checked : el.value;
         if (el.type === "number") value = parseInt(value) || 0;
 
-        const newConfig = { ...this._config, [key]: value };
+        this._config = { ...this._config, [key]: value };
         if (key === "show_total_bandwidth") {
           this.querySelectorAll(".row")[5].style.display = value ? "flex" : "none";
         }
         this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: newConfig },
+          detail: { config: this._config },
           bubbles: true,
           composed: true
         }));
@@ -422,5 +517,6 @@ class SwitchPortCardProEditor extends HTMLElement {
     });
   }
 }
+
 customElements.define("switch-port-card-pro", SwitchPortCardPro);
 customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
