@@ -1,5 +1,4 @@
 // switch-port-card-pro.js
-// v1.0.0 � The One That Works. Forever.
 
 class SwitchPortCardPro extends HTMLElement {
   constructor() {
