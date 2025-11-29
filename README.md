@@ -14,14 +14,14 @@ This Home Assistant integration with card shows the status of your switch ports 
   <em>Integration after installation</em>
 </p>
 <p align="center">
-  <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20configuration.png" width="500"/>
+  <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20configuration.png" width="600"/>
   <br>
   <em>Live port status with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (gray)</em>
 </p>
 
 
-**IMPORTANT**: SNMP requires the right baseoid for getting the right data.
-This baseoid can be manufacturer dependent. The integration uses baseoids that you can configure on the fly.
+**IMPORTANT**: SNMP requires the right baseoids for getting the required data.
+This baseoid can be manufacturer dependent. The integration uses baseoids that you can configure on the fly and has default some standard ones.
 
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20integration%20setting%20options.png" width="120"/>
