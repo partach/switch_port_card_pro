@@ -5,6 +5,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
+import homeassistant.helpers.device_registry as dr
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -195,9 +196,12 @@ class SwitchPortBaseEntity(SensorEntity):
         
         # Initial DeviceInfo setup
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.host)},
+            identifiers={(DOMAIN, f"{entry_id}_{coordinator.host}")},  # ← UNIQUE PER INSTANCE
+            connections={(dr.CONNECTION_NETWORK_MAC, coordinator.host)},  # optional, nice for UI
             name=f"Switch {coordinator.host}",
-            manufacturer="SNMP Switch",
+            manufacturer="Generic SNMP Switch",
+            model="Unknown",
+            sw_version=None,
         )
         # Register for update callbacks
         self._attr_extra_state_attributes = {}
@@ -212,6 +216,35 @@ class SwitchPortBaseEntity(SensorEntity):
         """Remove update listener."""
         self.remove_listener()
         await super().async_will_remove_from_hass()
+
+    async def async_added_to_hass(self) -> None:
+        """Update device info when first data arrives."""
+        await super().async_added_to_hass()
+        
+        @callback
+        def _update_device_info():
+            if not self.coordinator.data:
+                return
+            system = self.coordinator.data.system
+            hostname = system.get("hostname", "").strip()
+            device_name = hostname or f"Switch {self.coordinator.host}"
+            
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")},
+                connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
+                name=device_name,
+                manufacturer="SNMP Switch",
+                model=system.get("model", "Unknown"),
+                sw_version=system.get("firmware"),
+            )
+            # Trigger device registry update
+            self.registry_entry_updated()
+        
+        self.coordinator.async_add_listener(_update_device_info)
+        # Run once immediately if data already there
+        if self.coordinator.data:
+            _update_device_info()
+
 
 # --- Aggregate and Port Sensors ---
 class TotalPoESensor(SwitchPortBaseEntity):
@@ -405,7 +438,8 @@ async def async_setup_entry(
     ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
-
+    
+    
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
@@ -415,7 +449,7 @@ async def async_setup_entry(
         "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
         "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
         "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
-        "poe_status": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_status", "")),
+        "poe_status": entry.options.get("oid_poe_status", DEFAULT_BASE_OIDS.get("poe_status", "")),
     }
 
     # System OIDs must be mapped to their generic keys for the coordinator logic
@@ -431,6 +465,8 @@ async def async_setup_entry(
     coordinator = SwitchPortCoordinator(
         hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans
     )
+
+    coordinator.device_name = entry.title
 
     # Store coordinator for card and other platforms to access
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
