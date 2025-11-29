@@ -12,7 +12,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
     get_cmd,
-    walk_cmd,
+    next_cmd,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ async def async_snmp_walk(
         # Use walk_cmd for the operation
         # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
         # But in v3arch.asyncio it returns an async iterator yielding these tuples
-        iterator = await walk_cmd(
+        iterator = await next_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
@@ -130,7 +130,7 @@ async def async_snmp_walk(
                 oid_str = str(oid)
                 # Double-check we are still in the tree (walkCmd handles this but good for safety)
                 if not oid_str.startswith(base_oid):
-                    break
+                    return results
                 results[oid_str] = value.prettyPrint()
 
     except Exception as exc:
