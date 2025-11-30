@@ -14,14 +14,14 @@ This Home Assistant integration (with card included) shows the status of your sw
   <em>Integration after installation</em>
 </p>
 <p align="center">
-  <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20configuration.png" width="600"/>
+  <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20visual.png" width="600"/>
   <br>
   <em>Live port status with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (gray)</em>
 </p>
 
 
-**IMPORTANT**: SNMP requires the right baseoids for getting the required data.
-This baseoid can be manufacturer dependent and are sometimes hard to find. 
+**IMPORTANT**: SNMP requires the right base-oid's for getting the required data.
+This base oid can be manufacturer dependent and are sometimes hard to find. 
 The integration uses baseoids that you can configure on the fly and has default some standard ones.
 
 <p align="center">
@@ -60,14 +60,42 @@ What is important that you need:
 
 ## Coniguration options
 The card comes with a configuration dialog that guides the instalation in HA.
-See image above.
+<p align="center">
+  <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20configuration.png" width="600"/>
+  <br>
+  <em>configuration of the card</em>
+</p>
 
 ## using the card example
 The card has a configuration screen which can be used in stead...
 ```yaml
   type: custom:switch-port-card-pro
-  device: xxx
+  device: sensor.switch_192_168_1_1
+  name: XGS1935
+  compact_mode: false
+  show_live_traffic: true
 ```
+
+## verified oids for zyxel 1935
+Example uses switch name 'switch 192.168.1.1'.
+
+For the 'port oid's' the integration will walk these oid's (meaning the sw puts .1 for port 1 behind it, etc.)
+| Port # | Entity ID Example                          | Attribute        | Description                          | SNMP OID (or note)                  |
+|-------|---------------------------------------------|------------------------|--------------------------------------|-------------------------------------|
+| –     | `sensor.switch_192_168_1_1_total_bandwidth` | `state`                | Total switch bandwidth (Mbps)        | Custom aggregate (SW calculates)     |
+| –     | `sensor.switch_192_168_1_1_system_cpu`      | `state`                | CPU usage (%)                        | `1.3.6.1.4.1.890.1.15.3.2.4.0`  |
+| –     | `sensor.switch_192_168_1_1_system_memory`   | `state`                | Memory usage (%)                     | `1.3.6.1.4.1.890.1.15.3.2.5.0`  |
+| –     | `sensor.switch_192_168_1_1_firmware`     | `state`                | Firmware text                     | `1.3.6.1.4.1.890.1.15.3.1.6.0`  |
+| –     | `sensor.switch_192_168_1_1_hostname`     | `state`                | The vendor name and type                     | `1.3.6.1.2.1.1.5.0`  |
+| –     | `sensor.switch_192_168_1_1_uptime`     | `state`                | The up time of the switch                     | `1.3.6.1.2.1.1.3.0`  |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `port_name`            | Port description / name              | `1.3.6.1.2.1.31.1.1.1.18`        |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `status`               | Link state (up/down)                 | `1.3.6.1.2.1.2.2.1.8`             |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `speed_bps`            | Current link speed in bps            | `1.3.6.1.2.1.2.2.1.5`         |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `rx_bps_live`          | Real-time RX bandwidth (bps)         | Custom calculation / script         |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `tx_bps_live`          | Real-time TX bandwidth (bps)         | Custom calculation / script         |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `poe_enabled`          | PoE enabled on port                  | `1.3.6.1.4.1.<vendor>.poe.x`       |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `vlan_id`              | Current VLAN (if supported)          | `1.3.6.1.2.1.17.7.1.4.5.1.1`     |
+
 
 ## Changelog
 See CHANGELOG.md
