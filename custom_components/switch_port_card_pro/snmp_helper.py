@@ -174,52 +174,98 @@ async def discover_physical_ports(
     hass,
     host: str,
     community: str,
-    mp_model: int = 1,
-) -> dict[int, int]:
+    mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
+) -> dict[int, dict[str, Any]]:
     """
-    Auto-discover real physical Ethernet ports and return mapping:
-    { logical_port: ifIndex }
-    Works on ASUS routers, Zyxel, TP-Link, Ubiquiti, Cisco, etc.
+    Auto-discover real physical ports and classify copper vs SFP.
+
+    Returns:
+        {
+            1: {"if_index": 17, "name": "eth1", "is_copper": True,  "is_sfp": False},
+            2: {"if_index": 18, "name": "eth2", "is_copper": True,  "is_sfp": False},
+            ...
+            25: {"if_index": 101, "name": "Port 25", "is_copper": False, "is_sfp": True},
+        }
     """
+    mapping: dict[int, dict[str, Any]] = {}
+    logical_port = 1
+
     try:
-        data = await async_snmp_walk(
+        # Step 1: Get all interface descriptions
+        descr_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model=mp_model
         )
-        if not data:
-            _LOGGER.debug("discover_physical_ports: empty walk result for %s", host)
+        if not descr_data:
+            _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
             return {}
 
-        mapping: dict[int, int] = {}
-        logical = 1
+        # Step 2: Get all interface types (for copper vs SFP detection)
+        type_data = await async_snmp_walk(
+            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
+        )
 
-        for oid, descr_raw in data.items():
+        for oid_str, descr_raw in descr_data.items():
             try:
-                if_index = int(oid.split(".")[-1])
-                descr = descr_raw.lower().strip()
+                if_index = int(oid_str.split(".")[-1])
+                descr = descr_raw.strip().lower()
             except (ValueError, IndexError, AttributeError):
                 continue
 
-            # Accept real physical interfaces
-            if any(p in descr for p in ["eth", "ge-", "gigabit", "fasteth", "lan", "wan"]):
-                # Reject virtual/junk interfaces
-                if any(bad in descr for bad in ["br", "vlan", "tun", "lo", "dummy", "wlan", "ath", "rai", "wifi", "wl"]):
-                    continue
-                mapping[logical] = if_index
-                logical += 1
+            # Filter: only real Ethernet ports
+            if not any(p in descr for p in ["eth", "ge-", "gigabit", "fasteth", "port ", "lan", "wan"]):
+                continue
 
-        _LOGGER.debug(
-            "discover_physical_ports: found %d physical ports on %s → %s",
+            # Reject virtual/junk interfaces
+            if any(bad in descr for bad in ["br", "vlan", "tun", "lo", "dummy", "wlan", "ath", "rai", "wifi", "wl", "bond", "veth"]):
+                continue
+
+            # Get ifType to detect SFP
+            type_oid = f"1.3.6.1.2.1.2.2.1.3.{if_index}"
+            raw_type = type_data.get(type_oid, "0")
+            try:
+                if_type = int(raw_type)
+            except (ValueError, TypeError):
+                if_type = 0
+
+            # Known SFP types (standard + vendor quirks)
+            is_sfp = if_type in (
+                56,   # fibreChannel (common)
+                161,  # optical
+                171,  # optical (QNAP, Zyxel)
+                172,  # optical (some Cisco)
+                117,  # gigabitEthernet (sometimes SFP on cheap switches)
+            )
+            is_copper = not is_sfp
+
+            # Friendly name
+            name = descr_raw.strip()
+            if name.lower().startswith("eth"):
+                name = f"LAN Port {logical_port}"
+            elif "wan" in name.lower():
+                name = "WAN"
+
+            mapping[logical_port] = {
+                "if_index": if_index,
+                "name": name,
+                "if_descr": descr_raw.strip(),
+                "is_sfp": is_sfp,
+                "is_copper": is_copper,
+            }
+            logical_port += 1
+
+        _LOGGER.info(
+            "Auto-discovered %d physical ports on %s (%d copper, %d SFP)",
             len(mapping),
             host,
-            mapping,
+            sum(1 for p in mapping.values() if p["is_copper"]),
+            sum(1 for p in mapping.values() if p["is_sfp"]),
         )
         return mapping
 
     except asyncio.CancelledError:  # pragma: no cover
         raise
 
-    # Intentional broad catch – auto-discovery must never bring down the whole integration
     # ruff: noqa: BLE001
-    except Exception as exc:
+    except Exception as exc:  # intentional broad catch – discovery must not kill integration
         _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
