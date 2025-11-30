@@ -160,9 +160,18 @@ class SwitchPortCardPro extends HTMLElement {
     if (bw?.state) {
       let val = Number(bw.state);
       const u = (bw.attributes?.unit_of_measurement||"").toLowerCase();
-      if (u.includes("bit/s") && !u.includes("mbit") && !u.includes("kbit") && !u.includes("gbit")) val/=1e6;
-      else if (u.includes("kbit")) val/=1e3;
-      else if (u.includes("gbit")) val*=1e3;
+      
+      // SNMP integration bug: labels as Mbit/s but actually reports Kbps
+      // Detection: if value > 1,000 and unit says "mbit", it's likely Kbps not Mbps
+      if (u.includes("mbit") && val > 1000) {
+        val = val / 1000; // Convert Kbps to Mbps
+      } else if (u.includes("bit/s") && !u.includes("mbit") && !u.includes("kbit") && !u.includes("gbit")) {
+        val = val / 1e6; // bps to Mbps
+      } else if (u.includes("kbit")) {
+        val = val / 1e3; // Kbps to Mbps
+      } else if (u.includes("gbit")) {
+        val = val * 1e3; // Gbps to Mbps
+      }
       bwText = `${val.toFixed(1)} Mbps`;
     }
     this.shadowRoot.getElementById("bandwidth").textContent = bwText;
@@ -183,11 +192,22 @@ class SwitchPortCardPro extends HTMLElement {
       gauge.style.display="block";
       let val=Number(bw.state);
       const u=(bw.attributes?.unit_of_measurement||"").toLowerCase();
-      if (u.includes("bit/s") && !u.includes("mbit") && !u.includes("kbit") && !u.includes("gbit")) val/=1e6;
-      else if (u.includes("kbit")) val/=1e3;
-      else if (u.includes("gbit")) val*=1e3;
+      
+      // Same detection as header - likely Kbps mislabeled as Mbit/s
+      if (u.includes("mbit") && val > 1000) {
+        val = val / 1000;
+      } else if (u.includes("bit/s") && !u.includes("mbit") && !u.includes("kbit") && !u.includes("gbit")) {
+        val = val / 1e6;
+      } else if (u.includes("kbit")) {
+        val = val / 1e3;
+      } else if (u.includes("gbit")) {
+        val = val * 1e3;
+      }
+      
       const pct=Math.min((val/((this._config.max_bandwidth_gbps||100)*1000))*100,100);
-      fill.style.backgroundPosition=`${100-pct}% 0`;
+      fill.style.width = `${pct}%`;
+      // Gradient position: 0% = green, 50% = yellow, 100% = red
+      fill.style.backgroundPosition = `${pct < 50 ? 0 : (pct - 50) * 2}% 0`;
     } else gauge.style.display="none";
 
     // PORTS
