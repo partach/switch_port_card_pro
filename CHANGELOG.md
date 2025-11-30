@@ -1,5 +1,16 @@
 # Changelog
-## [0.5.1] - Full Multi-Switch Support
+## [0.5.2] - live rx/tx support
+- Based on lifetime rx/tx counter determine the current rx/tx speed per port
+- Boolean setting in UI to turn on and off the real time rx/tx speeds display
+- Updated card configuration with ha look and feel
+- Updated device discovery mechanism and functioning 
+### Fixed
+- Bandwith calculation improvements
+- device selection for card
+### Documentation
+- bringing README up to date
+
+  ## [0.5.1] - Full Multi-Switch Support
 - Fixed unique ID conflicts when using multiple switches
 - Added proper device registry separation using entry_id
 - Dynamic device naming (hostname → config title → IP)
