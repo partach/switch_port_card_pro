@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 import asyncio
-from typing import Literal, Dict
+from typing import Literal, Dict, Any
 
 from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
