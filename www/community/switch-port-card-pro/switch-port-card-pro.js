@@ -1,8 +1,12 @@
-// switch-port-card-pro.js v2.1.0 — BULLETPROOF EDITION
+// switch-port-card-pro.js v1.0
 class SwitchPortCardPro extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+  }
+
+  static getConfigElement() {
+    return document.createElement("switch-port-card-pro-editor");
   }
 
   static getStubConfig() {
@@ -46,34 +50,39 @@ class SwitchPortCardPro extends HTMLElement {
 
   _collectEntities(hass) {
     const entities = {};
-    if (!this._config || (!this._config.device && !this._config.entity)) return entities;
-    let deviceId = this._config.device;
-    let entityPrefix = null;
-    let deviceEntities = [];
+    if (!this._config) return entities;
 
-    if (deviceId && hass.devices) {
-      const device = Object.values(hass.devices).find(d => d.id === deviceId);
-      if (device) deviceEntities = Object.values(hass.entities).filter(e => e.device_id === deviceId).map(e => e.entity_id);
+    let searchEntities = [];
+
+    // CASE 1: User selected a switch from the "Switch (auto)" dropdown → it's a PREFIX, not a device_id
+    if (this._config.device) {
+      const prefix = this._config.device.endsWith('_') ? this._config.device : this._config.device + "_";
+      searchEntities = Object.keys(hass.states).filter(id => id.startsWith(prefix));
     }
-    if (deviceEntities.length === 0 && this._config.entity) {
-      const ent = hass.states[this._config.entity];
-      if (ent?.attributes?.device_id) deviceId = ent.attributes.device_id;
-      else {
-        const parts = this._config.entity.split("_total_bandwidth");
-        if (parts.length) entityPrefix = parts[0] + "_";
+
+    // CASE 2: No device selected → use fallback entity prefix (your old reliable way)
+    if (searchEntities.length === 0 && this._config.entity) {
+      const parts = this._config.entity.split("_total_bandwidth");
+      if (parts.length > 1) {
+        const prefix = parts[0] + "_";
+        searchEntities = Object.keys(hass.states).filter(id => id.startsWith(prefix));
+      } else {
+        // Single entity fallback (very rare)
+        searchEntities = [this._config.entity];
       }
     }
-    if (deviceId && deviceEntities.length === 0) {
-      Object.values(hass.states).forEach(e => {
-        if (e.attributes?.device_id === deviceId) deviceEntities.push(e.entity_id);
-      });
-    }
-    const search = deviceEntities.length ? deviceEntities : Object.keys(hass.states);
 
-    search.forEach(id => {
-      if (typeof id !== "string" || (entityPrefix && !id.startsWith(entityPrefix))) return;
+    // CASE 3: Still nothing? → search everything (should never happen)
+    if (searchEntities.length === 0) {
+      searchEntities = Object.keys(hass.states);
+    }
+
+    // Now scan the final list exactly like before
+    searchEntities.forEach(id => {
+      if (typeof id !== "string") return;
       const e = hass.states[id];
       if (!e) return;
+
       if (id.includes("_total_bandwidth")) entities.bandwidth = e;
       else if (id.includes("_system_cpu") || id.includes("cpu_usage")) entities.cpu = e;
       else if (id.includes("_system_memory") || id.includes("memory_usage")) entities.memory = e;
@@ -86,6 +95,7 @@ class SwitchPortCardPro extends HTMLElement {
         if (m) entities[`port_${m[1]}_status`] = e;
       }
     });
+
     return entities;
   }
 
@@ -291,48 +301,86 @@ class SwitchPortCardPro extends HTMLElement {
 
 class SwitchPortCardProEditor extends HTMLElement {
   setConfig(c) { this._config = c || {total_ports:28,sfp_start_port:25,show_total_bandwidth:true,max_bandwidth_gbps:100,compact_mode:false,show_live_traffic:false}; }
-  getConfig() { return this._config; }
+
   set hass(hass) {
     this._hass = hass;
-    if (!hass) return;
-    if (this._last === JSON.stringify(this._config)) return;
+    if (!hass || this._last === JSON.stringify(this._config)) return;
     this._last = JSON.stringify(this._config);
 
-    const devices = Object.values(hass.states).reduce((a,e)=>{
-      if(e.attributes?.device_id && !a[e.attributes.device_id]) a[e.attributes.device_id]={id:e.attributes.device_id,name:e.attributes.device_name||e.entity_id};
-      return a;
-    },{});
-    const deviceList = Object.values(devices).sort((a,b)=>a.name.localeCompare(b.name));
+    const seen = new Set();
+    const deviceList = [];
+
+    Object.values(hass.states).forEach(entity => {
+      if (entity.entity_id.includes("_total_bandwidth")) {
+        const friendly = entity.attributes?.friendly_name || entity.entity_id;
+        const name = friendly.replace(/ Total Bandwidth.*/i, '').trim();
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          const prefix = entity.entity_id.split("_total_bandwidth")[0]; // e.g. "sensor.xgs1935"
+          deviceList.push({ id: prefix, name });
+        }
+      }
+    });
+
+    deviceList.sort((a,b) => a.name.localeCompare(b.name));
     const entityList = Object.keys(hass.states).filter(e=>e.includes("_port_")||e.includes("_bandwidth")||e.includes("_total_poe")).sort();
 
     this.innerHTML = `
       <style>
-        .row{margin:12px 0;display:flex;align-items:center;gap:12px}
-        label{min-width:160px;font-weight:500}
-        select,input{flex:1;padding:8px;border-radius:6px;border:1px solid #666;background:#333;color:white}
-        .checkbox{display:flex;align-items:center;gap:8px;margin:8px 0}
+        .row{margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+        label{min-width:160px;font-weight:500;color:var(--primary-text-color)}
+        select,input{flex:1;padding:8px;border-radius:6px;border:1px solid var(--divider-color);background:var(--input-background-color,#444);color:var(--input-text-color,#fff)}
+        .checkbox-row{display:flex;align-items:center;gap:16px;margin:10px 0}
+        .checkbox-label{font-weight:500;color:var(--primary-text-color);cursor:pointer}
       </style>
       <div style="padding:16px">
         <div class="row"><label>Title</label><input type="text" data-key="name" value="${this._config.name||''}"></div>
-        <div class="row"><label>Device</label><select data-key="device"><option value="">-- Select switch --</option>${deviceList.map(d=>`<option value="${d.id}" ${d.id===this._config.device?'selected':''}>${d.name}</option>`).join('')}</select></div>
-        <div class="row"><label>Fallback Entity</label><select data-key="entity"><option value="">-- Optional --</option>${entityList.map(e=>`<option value="${e}" ${e===this._config.entity?'selected':''}>${hass.states[e]?.attributes?.friendly_name||e}</option>`).join('')}</select></div>
+        <div class="row"><label>Device</label>
+          <select data-key="device">
+            <option value="">-- Select switch --</option>
+            ${deviceList.map(d=>`<option value="${d.id}" ${d.id===this._config.device?'selected':''}>${d.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row"><label>Fallback Entity</label>
+          <select data-key="entity">
+            <option value="">-- Optional --</option>
+            ${entityList.map(e=>`<option value="${e}" ${e===this._config.entity?'selected':''}>${hass.states[e]?.attributes?.friendly_name||e}</option>`).join('')}
+          </select>
+        </div>
         <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||28}"></div>
         <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||25}"></div>
-        <div class="checkbox"><input type="checkbox" data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}><label>Show Bandwidth Gauge</label></div>
-        <div class="row" style="display:${this._config.show_total_bandwidth!==false?'flex':'none'}"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps||100}"></div>
-        <div class="checkbox"><input type="checkbox" data-key="compact_mode" ${this._config.compact_mode?'checked':''}><label>Compact Mode</label></div>
-        <div class="checkbox"><input type="checkbox" data-key="show_live_traffic" ${this._config.show_live_traffic?'checked':''}><label>Show Live Traffic (↓ ↑ Mbps)</label></div>
+        <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps||100}"></div>
+
+        <div class="checkbox-row">
+          <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
+          <span class="checkbox-label">Show Bandwidth Gauge</span>
+        </div>
+        <div class="checkbox-row">
+          <ha-checkbox data-key="compact_mode" ${this._config.compact_mode?'checked':''}></ha-checkbox>
+          <span class="checkbox-label">Compact Mode</span>
+        </div>
+        <div class="checkbox-row">
+          <ha-checkbox data-key="show_live_traffic" ${this._config.show_live_traffic?'checked':''}></ha-checkbox>
+          <span class="checkbox-label">Show Live Traffic (Down Up Mbps)</span>
+        </div>
       </div>
     `;
 
-    this.querySelectorAll("[data-key]").forEach(el=>el.addEventListener("change",()=>{
-      const k=el.dataset.key;
-      let v=el.type==="checkbox"?el.checked:el.value;
-      if(el.type==="number")v=parseInt(v)||0;
-      this._config={...this._config,[k]:v};
-      if(k==="show_total_bandwidth") this.querySelectorAll(".row")[5].style.display=v?"flex":"none";
-      this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:this._config},bubbles:true,composed:true}));
-    }));
+    // FIXED EVENT LISTENERS (this is the only part that was broken)
+    this.querySelectorAll("[data-key]").forEach(el => {
+      el.addEventListener("change", () => {
+        const key = el.dataset.key;
+        const value = el.tagName === "HA-CHECKBOX" ? el.checked : el.value;
+        const finalValue = el.type === "number" ? parseInt(value) || 0 : value;
+
+        this._config = { ...this._config, [key]: finalValue };
+        this.dispatchEvent(new CustomEvent("config-changed", {
+          detail: { config: this._config },
+          bubbles: true,
+          composed: true
+        }));
+      });
+    });
   }
 }
 
