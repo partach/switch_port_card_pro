@@ -215,8 +215,11 @@ async def discover_physical_ports(
         )
         return mapping
 
-    except asyncio.CancelledError:
-        raise  # Let HA handle cancellation
-    except Exception as exc:  # noqa: BLE001 — intentional broad catch for discovery resilience
+    except asyncio.CancelledError:  # pragma: no cover
+        raise
+
+    # Intentional broad catch – auto-discovery must never bring down the whole integration
+    # ruff: noqa: BLE001
+    except Exception as exc:
         _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
