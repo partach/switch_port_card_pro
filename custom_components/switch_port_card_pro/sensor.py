@@ -366,6 +366,12 @@ class PortStatusSensor(SwitchPortBaseEntity):
         }
         if self.coordinator.include_vlans and p.get("vlan") is not None:
             attrs["vlan_id"] = p["vlan"]
+        port_info = self.coordinator.port_mapping.get(self.port, {})
+
+        attrs.update({
+            "is_sfp": port_info.get("is_sfp", False),
+            "is_copper": port_info.get("is_copper", True),
+        })
         return attrs
 
 # --- System Sensors ---
