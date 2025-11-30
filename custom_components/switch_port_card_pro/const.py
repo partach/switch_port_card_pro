@@ -27,7 +27,7 @@ CONF_OID_HOSTNAME: Final = "oid_hostname"
 CONF_OID_UPTIME: Final = "oid_uptime"
 
 # Default monitored ports (1–28 is safe for most 24+4 switches)
-DEFAULT_PORTS: Final = list(range(1, 29))
+DEFAULT_PORTS: Final = list(range(1, 9)) # remove 29 as this is too many for most users
 
 # Default per-port OIDs (standard + common working ones)
 DEFAULT_BASE_OIDS: Final = {
