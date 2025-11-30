@@ -169,3 +169,23 @@ async def async_snmp_bulk(
 
     results = await asyncio.gather(*[_get_one(oid) for oid in oid_list])
     return dict(zip(oid_list, results))
+
+async def discover_physical_ports(hass, host: str, community: str, mp_model: int = 1) -> dict[int, int]:
+    """
+    Auto-discover real physical ports (ethX, ge-, etc.) and return mapping:
+    { logical_port: ifIndex }
+    """
+    try:
+        data = await async_snmp_walk(hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model=mp_model)
+        mapping = {}
+        logical = 1
+        for oid, descr in data.items():
+            ifIndex = int(oid.split(".")[-1])
+            descr = descr.lower()
+            if any(x in descr for x in ["eth", "ge-", "gigabit", "fasteth", "lan", "wan"]):
+                if not any(bad in descr for bad in ["br", "vlan", "tun", "lo", "dummy", "wlan", "ath", "rai"]):
+                    mapping[logical] = ifIndex
+                    logical += 1
+        return mapping
+    except:
+        return {}
