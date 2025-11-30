@@ -15,7 +15,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     walk_cmd,
 )
 
-from .const import VERSION_TO_MP_MODEL
+from .const import SNMP_VERSION_TO_MP_MODEL
 
 _LOGGER = logging.getLogger(__name__)
 _SNMP_ENGINE = SnmpEngine()
