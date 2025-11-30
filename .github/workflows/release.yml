@@ -1,21 +1,19 @@
 name: Release
-
 on:
   release:
     types: [published]
-
 jobs:
   release_zip_file:
     name: Prepare release asset
     runs-on: ubuntu-latest
+    permissions:  # ← ADD THIS BLOCK
+      contents: write  # Required for uploading assets to releases
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
-
       - name: Get version
         id: version
         uses: home-assistant/actions/helpers/version@master
-        
       - name: Create zip
         run: |
           cd custom_components/switch_port_card_pro
