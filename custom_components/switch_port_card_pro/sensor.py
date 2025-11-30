@@ -35,6 +35,7 @@ from .const import (
     DEFAULT_PORTS,
     DEFAULT_SYSTEM_OIDS,
     DOMAIN,
+    SNMP_VERSION_TO_MP_MODEL,
 )
 from .snmp_helper import (
     async_snmp_walk,
@@ -76,7 +77,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.base_oids = base_oids
         self.system_oids = system_oids
         self.include_vlans = include_vlans
-        self.mp_model = 0 if snmp_version == "v1" else 1
+        self.mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
@@ -471,7 +472,7 @@ async def async_setup_entry(
     community = entry.data[CONF_COMMUNITY]
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
-    
+    mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
     # AUTO-DETECT PORTS
     user_ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
     detected = await discover_physical_ports(hass, host, community, mp_model)
