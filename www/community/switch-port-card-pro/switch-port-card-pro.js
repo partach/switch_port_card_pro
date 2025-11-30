@@ -1,4 +1,4 @@
-// switch-port-card-pro.js v1.0
+// switch-port-card-pro.js v2.1.0 — BULLETPROOF EDITION
 class SwitchPortCardPro extends HTMLElement {
   constructor() {
     super();
@@ -15,8 +15,8 @@ class SwitchPortCardPro extends HTMLElement {
       name: "Network Switch",
       device: "",
       entity: "sensor.mainswitch_total_bandwidth_mbps",
-      total_ports: 28,
-      sfp_start_port: 25,
+      total_ports: 8,
+      sfp_start_port: 9,
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -27,8 +27,8 @@ class SwitchPortCardPro extends HTMLElement {
   setConfig(config) {
     this._config = {
       name: "Network Switch",
-      total_ports: 28,
-      sfp_start_port: 25,
+      total_ports: 8,
+      sfp_start_port: 9,
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -39,7 +39,7 @@ class SwitchPortCardPro extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    if (!this._config) this._config = { total_ports:28, sfp_start_port:25, show_total_bandwidth:true, max_bandwidth_gbps:100, compact_mode:false, show_live_traffic:false };
+    if (!this._config) this._config = { total_ports:8, sfp_start_port:9, show_total_bandwidth:true, max_bandwidth_gbps:100, compact_mode:false, show_live_traffic:false };
     if (!this._entities || this._lastHass !== hass) {
       this._entities = this._collectEntities(hass);
       this._lastHass = hass;
@@ -221,8 +221,8 @@ class SwitchPortCardPro extends HTMLElement {
     } else gauge.style.display="none";
 
     // PORTS
-    const total=this._config.total_ports||28;
-    const sfpStart=this._config.sfp_start_port||25;
+    const total=this._config.total_ports||8;
+    const sfpStart=this._config.sfp_start_port||9;
     const copper=this.shadowRoot.getElementById("copper");
     const sfp=this.shadowRoot.getElementById("sfp");
     copper.innerHTML=""; sfp.innerHTML="";
@@ -300,7 +300,7 @@ class SwitchPortCardPro extends HTMLElement {
 }
 
 class SwitchPortCardProEditor extends HTMLElement {
-  setConfig(c) { this._config = c || {total_ports:28,sfp_start_port:25,show_total_bandwidth:true,max_bandwidth_gbps:100,compact_mode:false,show_live_traffic:false}; }
+  setConfig(c) { this._config = c || {total_ports:8,sfp_start_port:9,show_total_bandwidth:true,max_bandwidth_gbps:100,compact_mode:false,show_live_traffic:false}; }
 
   set hass(hass) {
     this._hass = hass;
@@ -347,8 +347,8 @@ class SwitchPortCardProEditor extends HTMLElement {
             ${entityList.map(e=>`<option value="${e}" ${e===this._config.entity?'selected':''}>${hass.states[e]?.attributes?.friendly_name||e}</option>`).join('')}
           </select>
         </div>
-        <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||28}"></div>
-        <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||25}"></div>
+        <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
+        <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
         <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps||100}"></div>
 
         <div class="checkbox-row">
