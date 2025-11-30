@@ -36,8 +36,11 @@ from .const import (
     DEFAULT_SYSTEM_OIDS,
     DOMAIN,
 )
-from .snmp_helper import async_snmp_walk, async_snmp_bulk
-
+from .snmp_helper import (
+    async_snmp_walk,
+    async_snmp_bulk,
+    discover_physical_ports,
+)
 _LOGGER = logging.getLogger(__name__)
 UPDATE_INTERVAL = timedelta(seconds=20)
 
