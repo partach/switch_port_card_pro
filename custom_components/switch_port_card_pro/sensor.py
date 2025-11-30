@@ -466,12 +466,20 @@ async def async_setup_entry(
     """Set up the platform from config_entry."""
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
-
-    ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
     
+    # AUTO-DETECT PORTS
+    user_ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
+    detected = await discover_physical_ports(hass, host, community, mp_model)
     
+    if detected:
+        ports = list(detected.keys())[:max(user_ports)]  # respect user limit
+        _LOGGER.info("Auto-detected %d physical ports on %s", len(ports), host)
+    else:
+        ports = user_ports
+        _LOGGER.info("No auto-detect, using user config: %d ports", len(ports))
+        
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
