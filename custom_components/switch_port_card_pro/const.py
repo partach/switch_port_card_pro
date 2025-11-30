@@ -26,6 +26,12 @@ CONF_OID_FIRMWARE: Final = "oid_firmware"
 CONF_OID_HOSTNAME: Final = "oid_hostname"
 CONF_OID_UPTIME: Final = "oid_uptime"
 
+SNMP_VERSION_TO_MP_MODEL = {
+    "v1": 0,
+    "v2c": 1,
+    "v3": 2,
+}
+
 # Default monitored ports (1–28 is safe for most 24+4 switches)
 DEFAULT_PORTS: Final = list(range(1, 9)) # remove 29 as this is too many for most users
 
