@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 import homeassistant.helpers.device_registry as dr
-
+from datetime import datetime
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -293,13 +293,17 @@ class FirmwareSensor(SwitchPortBaseEntity):
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
-
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str, port: int) -> None:
         super().__init__(coordinator, entry_id)
         self.port = str(port)
         self._attr_name = f"Port {port} Status"
         self._attr_unique_id = f"{entry_id}_port_{port}_status"
         self._attr_icon = "mdi:lan"
+
+        # For live traffic calculation
+        self._last_rx_bytes: int | None = None
+        self._last_tx_bytes: int | None = None
+        self._last_update: float | None = None
 
     @property
     def native_value(self) -> str | None:
@@ -318,11 +322,40 @@ class PortStatusSensor(SwitchPortBaseEntity):
         if not self.coordinator.data:
             return {}
         p = self.coordinator.data.ports.get(self.port, {})
+
+        # === LIFETIME VALUES (always available) ===
+        raw_rx_bytes = p.get("rx", 0)
+        raw_tx_bytes = p.get("tx", 0)
+
+        # === LIVE RATE CALCULATION (only if we have previous data) ===
+        now = datetime.now().timestamp()
+        rx_bps_live = 0
+        tx_bps_live = 0
+
+        if (self._last_rx_bytes is not None
+            and self._last_tx_bytes is not None
+            and self._last_update is not None
+            and now > self._last_update):
+
+            delta_time = now - self._last_update
+            if delta_time > 0:
+                rx_bps_live = int((raw_rx_bytes - self._last_rx_bytes) * 8 / delta_time)
+                tx_bps_live = int((raw_tx_bytes - self._last_tx_bytes) * 8 / delta_time)
+
+        # Store for next poll
+        self._last_rx_bytes = raw_rx_bytes
+        self._last_tx_bytes = raw_tx_bytes
+        self._last_update = now
+
         attrs = {
             "port_name": p.get("name"),
             "speed_bps": p.get("speed"),
-            "rx_bps": p.get("rx", 0) * 8,
-            "tx_bps": p.get("tx", 0) * 8,
+            # Legacy — kept for old cards / backward compatibility
+            "rx_bps": raw_rx_bytes * 8,
+            "tx_bps": raw_tx_bytes * 8,
+            # NEW — real live rates (used when card has show_live_traffic: true)
+            "rx_bps_live": rx_bps_live,
+            "tx_bps_live": tx_bps_live,
             "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
             "poe_enabled": p.get("poe_status") in (1, 2, 4),
             "poe_class": p.get("poe_status"),
@@ -330,7 +363,6 @@ class PortStatusSensor(SwitchPortBaseEntity):
         if self.coordinator.include_vlans and p.get("vlan") is not None:
             attrs["vlan_id"] = p["vlan"]
         return attrs
-
 
 # --- System Sensors ---
 
