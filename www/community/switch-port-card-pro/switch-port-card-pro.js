@@ -255,11 +255,22 @@ class SwitchPortCardPro extends HTMLElement {
       }
 
       const statusText = this._config.show_live_traffic && (rxBps>100000 || txBps>100000)
-        ? `${rxBps>txBps*1.5?'Down':''}${txBps>rxBps*1.5?'Up':''} ${speedText}`
+        ? `${direction} ${speedText}`.trim()
         : `${direction} ${speedText}`;
 
-      const liveHTML = this._config.show_live_traffic && (rxBps>1000 || txBps>1000)
-        ? `<div class="live-traffic">↓${(rxBps/1e6).toFixed(1)} ↑${(txBps/1e6).toFixed(1)}</div>`
+      // Format traffic with proper units
+      const formatTraffic = (bps) => {
+        const mbps = bps / 1e6;
+        if (mbps >= 1000) return `${(mbps/1000).toFixed(1)}G`;
+        if (mbps >= 1) return `${mbps.toFixed(1)}M`;
+        return `${(bps/1e3).toFixed(0)}K`;
+      };
+
+      // Always show live traffic div (even if empty) to maintain consistent height
+      const liveHTML = this._config.show_live_traffic
+        ? (rxBps>1000 || txBps>1000)
+          ? `<div class="live-traffic">\u2193${formatTraffic(rxBps)} \u2191${formatTraffic(txBps)}</div>`
+          : `<div class="live-traffic">&nbsp;</div>`
         : '';
 
       const div = document.createElement("div");
@@ -267,8 +278,8 @@ class SwitchPortCardPro extends HTMLElement {
       div.title = `${name}\nState: ${isOn?"UP":"DOWN"}\nSpeed: ${speedText}${vlan?`\nVLAN: ${vlan}`:""}\nRX: ${(rxBps/1e6).toFixed(2)} Mb/s\nTX: ${(txBps/1e6).toFixed(2)} Mb/s`;
       div.innerHTML = `
         <div class="port-num">${i}</div>
-        <div class="port-status">${statusText}</div>
         ${liveHTML}
+        <div class="port-status">${statusText}</div>
         ${poeEnabled?'<div class="poe-indicator">P</div>':''}
       `;
       (i < sfpStart ? copper : sfp).appendChild(div);
