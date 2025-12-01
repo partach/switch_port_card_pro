@@ -78,6 +78,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.system_oids = system_oids
         self.include_vlans = include_vlans
         self.mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
+        self.port_mapping = {}
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
@@ -517,7 +518,7 @@ async def async_setup_entry(
     )
 
     coordinator.device_name = entry.title
-
+    coordinator.port_mapping = detected
     # Store coordinator for card and other platforms to access
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
