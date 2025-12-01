@@ -257,7 +257,7 @@ class SwitchPortBaseEntity(SensorEntity):
                     identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")}
             )
             if device_entry:
-                device_registry.async_update_device(
+                dev_reg.async_update_device(
                 device_entry.id,
                 name=device_name,
                 model=model,
