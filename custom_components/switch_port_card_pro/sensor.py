@@ -231,7 +231,8 @@ class SwitchPortBaseEntity(SensorEntity):
             if not self.coordinator.data:
                 return
             system = self.coordinator.data.system
-            hostname = system.get("hostname", "").strip()
+            raw_hostname = system.get("hostname") or ""
+            hostname = raw_hostname.strip()
             device_name = hostname or f"Switch {self.coordinator.host}"
             
             self._attr_device_info = DeviceInfo(
