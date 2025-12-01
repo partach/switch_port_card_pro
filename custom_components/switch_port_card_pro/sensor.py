@@ -377,6 +377,12 @@ class PortStatusSensor(SwitchPortBaseEntity):
         self._last_tx_bytes = raw_tx_bytes
         self._last_update = now
         port_info = self.coordinator.port_mapping.get(int(self.port), {})
+        has_poe = (
+            p.get("poe_power", 0) > 0 or
+            p.get("poe_status", 0) > 0 or
+            self.coordinator.base_oids.get("poe_power") or
+            self.coordinator.base_oids.get("poe_status")
+        )
         attrs = {
             "port_name": p.get("name"),
             "speed_bps": p.get("speed"),
@@ -386,15 +392,19 @@ class PortStatusSensor(SwitchPortBaseEntity):
             # NEW — real live rates (used when card has show_live_traffic: true)
             "rx_bps_live": rx_bps_live,
             "tx_bps_live": tx_bps_live,
-            "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
-            "poe_enabled": p.get("poe_status") in (1, 2, 4),
-            "poe_class": p.get("poe_status"),
             # SFP / Copper detection (universal — works on Zyxel, TP-Link, QNAP, ASUS, etc.)
             "is_sfp": bool(port_info.get("is_sfp", False)),
             "is_copper": bool(port_info.get("is_copper", True)),
+            "interface": port_info.get("if_descr"),  # e.g. "eth5"
         }
         if self.coordinator.include_vlans and p.get("vlan") is not None:
             attrs["vlan_id"] = p["vlan"]
+        if has_poe:
+            attrs.update({
+                "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
+                "poe_enabled": p.get("poe_status") in (1, 2, 4),
+                "poe_class": p.get("poe_status"),
+            })
         return attrs
 
 # --- System Sensors ---
