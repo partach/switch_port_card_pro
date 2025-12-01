@@ -45,7 +45,7 @@ async def async_snmp_get(
         transport.timeout = timeout
         transport.retries = retries
         obj_identity = ObjectIdentity(base_oid)
-        obj_identity.resolveWithMib(False)
+  #      obj_identity.resolveWithMib(False)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
@@ -111,7 +111,7 @@ async def async_snmp_walk(
         # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
         # But in v3arch.asyncio it returns an async iterator yielding these tuples
         obj_identity = ObjectIdentity(base_oid)
-        obj_identity.resolveWithMib(False)
+   #     obj_identity.resolveWithMib(False)
 
         iterator = walk_cmd(
             _SNMP_ENGINE,
