@@ -298,6 +298,8 @@ class FirmwareSensor(SwitchPortBaseEntity):
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
+    _attr_has_entity_name = True
+    _attr_should_poll = False
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str, port: int) -> None:
         super().__init__(coordinator, entry_id)
         self.port = str(port)
@@ -351,7 +353,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
         self._last_rx_bytes = raw_rx_bytes
         self._last_tx_bytes = raw_tx_bytes
         self._last_update = now
-
+        port_info = self.coordinator.port_mapping.get(self.port, {})
         attrs = {
             "port_name": p.get("name"),
             "speed_bps": p.get("speed"),
@@ -364,15 +366,12 @@ class PortStatusSensor(SwitchPortBaseEntity):
             "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
             "poe_enabled": p.get("poe_status") in (1, 2, 4),
             "poe_class": p.get("poe_status"),
+            # SFP / Copper detection (universal — works on Zyxel, TP-Link, QNAP, ASUS, etc.)
+            "is_sfp": bool(port_info.get("is_sfp", False)),
+            "is_copper": bool(port_info.get("is_copper", True)),
         }
         if self.coordinator.include_vlans and p.get("vlan") is not None:
             attrs["vlan_id"] = p["vlan"]
-        port_info = self.coordinator.port_mapping.get(self.port, {})
-
-        attrs.update({
-            "is_sfp": port_info.get("is_sfp", False),
-            "is_copper": port_info.get("is_copper", True),
-        })
         return attrs
 
 # --- System Sensors ---
