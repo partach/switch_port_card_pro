@@ -49,7 +49,7 @@ async def async_snmp_get(
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
-            ObjectType(ObjectIdentity(oid)),
+            ObjectType(ObjectIdentity(oid).resolveWithMib(False)),
         )
 
         if error_indication:
@@ -113,7 +113,7 @@ async def async_snmp_walk(
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
-            ObjectType(ObjectIdentity(base_oid)),
+            ObjectType(ObjectIdentity(base_oid).resolveWithMib(False)),
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
         )
