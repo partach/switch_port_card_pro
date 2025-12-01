@@ -44,7 +44,7 @@ async def async_snmp_get(
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
-        obj_identity = ObjectIdentity(base_oid)
+        obj_identity = ObjectIdentity(oid)
   #      obj_identity.resolveWithMib(False)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
