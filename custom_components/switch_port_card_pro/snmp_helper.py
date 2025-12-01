@@ -1,4 +1,4 @@
-"""Async SNMP helper – works perfectly with pysnmp-lextudio 7.x+ (v3arch)"""
+"""Async SNMP helper works perfectly with pysnmp-7)"""
 from __future__ import annotations
 import logging
 import asyncio
