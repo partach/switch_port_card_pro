@@ -236,13 +236,16 @@ async def discover_physical_ports(
             is_sfp = is_sfp_by_type or is_sfp_by_name
             is_copper = not is_sfp
 
-            # Friendly display name
-            if descr_lower.startswith("eth"):
-                name = f"LAN Port {logical_port}"
-            elif "wan" in descr_lower:
-                name = "WAN"
-            else:
+            # Friendly name — keep the real name on routers, make it pretty on switches
+            if descr_lower.startswith("eth") or descr_lower.startswith("ge"):
+                # ASUS, TP-Link routers — keep original name (eth1, eth2, etc.)
                 name = descr_clean
+            elif "port " in descr_lower or "lan" in descr_lower:
+                # Managed switches (Zyxel, QNAP) — use the clean description
+                name = descr_clean
+            else:
+                # Fallback
+                name = f"Port {logical_port}"
 
             mapping[logical_port] = {
                 "if_index": if_index,
