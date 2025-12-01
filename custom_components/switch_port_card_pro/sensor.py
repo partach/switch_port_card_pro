@@ -82,6 +82,14 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
+            if not self.port_mapping:
+                detected = await discover_physical_ports(
+                    self.hass, self.host, self.community, mp_model=self.mp_model
+                )
+                self.port_mapping = detected or {
+                    p: {"if_index": p, "name": f"Port {p}", "is_sfp": False, "is_copper": True}
+                    for p in self.ports
+                }            
             # === PORT WALKS ===
             oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status"]
             if self.include_vlans and self.base_oids.get("vlan"):
@@ -128,6 +136,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 
             for port in self.ports:
                 p = str(port)
+                port_info = self.port_mapping.get(port) or {}
+                if_index = port_info.get("if_index", port)  # fallback to port number if no mapping
                 ports_data[p] = {
                     "status": "off",
                     "speed": 0,
@@ -139,20 +149,22 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     "poe_status": 0,
                 }
 
-                if any(port in t for t in (status, speed, rx, tx, poe_power)):
+                # Use the real if_index for all lookups
+                if any(if_index in t for t in (status, speed, rx, tx, poe_power)):
                     ports_data[p].update({
-                        "status": "on" if status.get(port, 2) == 1 else "off",
-                        "speed": speed.get(port, 0),
-                        "rx": rx.get(port, 0),
-                        "tx": tx.get(port, 0),
-                        "name": name.get(port, f"Port {port}"),
-                        "vlan": vlan.get(port),
-                        "poe_power": poe_power.get(port, 0),
-                        "poe_status": poe_status.get(port, 0),
+                        "status": "on" if status.get(if_index, 2) == 1 else "off",
+                        "speed": speed.get(if_index, 0),
+                        "rx": rx.get(if_index, 0),
+                        "tx": tx.get(if_index, 0),
+                        "name": name.get(if_index, f"Port {port}"),
+                        "vlan": vlan.get(if_index),
+                        "poe_power": poe_power.get(if_index, 0),
+                        "poe_status": poe_status.get(if_index, 0),
                     })
-                    total_rx += rx.get(port, 0)
-                    total_tx += tx.get(port, 0)
-                    total_poe_mw += poe_power.get(port, 0)
+
+                total_rx += rx.get(if_index, 0)
+                total_tx += tx.get(if_index, 0)
+                total_poe_mw += poe_power.get(if_index, 0)
 
             bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
 
@@ -189,67 +201,69 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 # Entities
 # =============================================================================
 class SwitchPortBaseEntity(SensorEntity):
-    """Base class for all entities."""
-
     _attr_has_entity_name = True
     _attr_should_poll = False
-    
+
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str) -> None:
-        """Initialize base entity."""
         self.coordinator = coordinator
         self.entry_id = entry_id
-        
-        # Initial DeviceInfo setup
+
+        # STATIC DEVICE INFO (never changes)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry_id}_{coordinator.host}")},  # ← UNIQUE PER INSTANCE
-            connections={(dr.CONNECTION_NETWORK_MAC, coordinator.host)},  # optional, nice for UI
-            name=f"Switch {coordinator.host}",
-            manufacturer="Generic SNMP Switch",
-            model="Unknown",
-            sw_version=None,
+            identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
+            connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
+            name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
+            manufacturer="SNMP Device",
+            model="Unknown",          # updated dynamically later
+            sw_version=None,          # updated dynamically later
         )
-        # Register for update callbacks
-        self._attr_extra_state_attributes = {}
+
+        # Auto update entity state when coordinator updates
         self.remove_listener = coordinator.async_add_listener(self.async_write_ha_state)
 
     @property
     def available(self) -> bool:
-        """Return True if data is available and coordinator is running."""
         return self.coordinator.last_update_success
 
-    async def async_will_remove_from_hass(self):
-        """Remove update listener."""
+    async def async_will_remove_from_hass(self) -> None:
         self.remove_listener()
         await super().async_will_remove_from_hass()
 
     async def async_added_to_hass(self) -> None:
-        """Update device info when first data arrives."""
         await super().async_added_to_hass()
-        
+
         @callback
-        def _update_device_info():
+        def _update_device_info() -> None:
+            """
+            Update HA device registry with dynamic system info.
+            Safe: .strip() only used on non-None.
+            """
             if not self.coordinator.data:
                 return
+
             system = self.coordinator.data.system
+
             raw_hostname = system.get("hostname") or ""
-            hostname = raw_hostname.strip()
-            device_name = hostname or f"Switch {self.coordinator.host}"
-            
-            self._attr_device_info = DeviceInfo(
-                identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")},
-                connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
+            device_name = raw_hostname.strip() or f"Switch {self.coordinator.host}"
+            model = (system.get("model") or "Unknown")
+            firmware = system.get("firmware")
+
+            # Update device registry entry
+            device_registry = dr.async_get(self.hass)
+            device_registry.async_update_device(
+                self.device_info["identifiers"],  # <- Correct: HA accepts the full set
                 name=device_name,
-                manufacturer="SNMP Switch",
-                model=system.get("model", "Unknown"),
-                sw_version=system.get("firmware"),
+                model=model,
+                sw_version=firmware,
             )
-            # Trigger device registry update
-            self.async_registry_entry_updated()
-        
+
+        # Run on each coordinator update
         self.coordinator.async_add_listener(_update_device_info)
-        # Run once immediately if data already there
+
+        # Also run immediately on entity creation (if we already have data)
         if self.coordinator.data:
             _update_device_info()
+
 
 
 # --- Aggregate and Port Sensors ---
