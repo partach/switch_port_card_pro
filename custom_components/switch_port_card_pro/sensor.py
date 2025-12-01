@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 import homeassistant.helpers.device_registry as dr
+from homeassistant.helpers import device_registry
 from datetime import datetime
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -219,14 +220,17 @@ class SwitchPortBaseEntity(SensorEntity):
         )
 
         # Auto update entity state when coordinator updates
-        self.remove_listener = coordinator.async_add_listener(self.async_write_ha_state)
+        self._unsub_coordinator = coordinator.async_add_listener(self.async_write_ha_state)
 
     @property
     def available(self) -> bool:
         return self.coordinator.last_update_success
 
     async def async_will_remove_from_hass(self) -> None:
-        self.remove_listener()
+        if hasattr(self, '_unsub_coordinator') and self._unsub_coordinator:
+            self._unsub_coordinator()
+        if hasattr(self, '_unsub_devinfo') and self._unsub_devinfo:
+            self._unsub_devinfo()
         await super().async_will_remove_from_hass()
 
     async def async_added_to_hass(self) -> None:
@@ -236,7 +240,6 @@ class SwitchPortBaseEntity(SensorEntity):
         def _update_device_info() -> None:
             """
             Update HA device registry with dynamic system info.
-            Safe: .strip() only used on non-None.
             """
             if not self.coordinator.data:
                 return
@@ -249,20 +252,25 @@ class SwitchPortBaseEntity(SensorEntity):
             firmware = system.get("firmware")
 
             # Update device registry entry
-            device_registry = dr.async_get(self.hass)
-            device_registry.async_update_device(
-                self.device_info["identifiers"],  # <- Correct: HA accepts the full set
+            dev_reg = device_registry.async_get(self.hass)
+            device_entry = dev_reg.async_get_device(
+                    identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")}
+            )
+            if device_entry:
+                device_registry.async_update_device(
+                device_entry.id,
                 name=device_name,
                 model=model,
                 sw_version=firmware,
-            )
+                )
 
         # Run on each coordinator update
-        self.coordinator.async_add_listener(_update_device_info)
+        self._unsub_devinfo = self.coordinator.async_add_listener(_update_device_info)
 
         # Also run immediately on entity creation (if we already have data)
         if self.coordinator.data:
             _update_device_info()
+
 
 
 
@@ -368,7 +376,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
         self._last_rx_bytes = raw_rx_bytes
         self._last_tx_bytes = raw_tx_bytes
         self._last_update = now
-        port_info = self.coordinator.port_mapping.get(self.port, {})
+        port_info = self.coordinator.port_mapping.get(int(self.port), {})
         attrs = {
             "port_name": p.get("name"),
             "speed_bps": p.get("speed"),
@@ -532,7 +540,7 @@ async def async_setup_entry(
     )
 
     coordinator.device_name = entry.title
-    coordinator.port_mapping = detected
+    coordinator.port_mapping = detected or {}
     # Store coordinator for card and other platforms to access
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
