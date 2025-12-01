@@ -199,8 +199,6 @@ async def discover_physical_ports(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
         )
 
-        )
-
         for oid_str, descr_raw in descr_data.items():
             try:
                 if_index = int(oid_str.split(".")[-1])
