@@ -243,7 +243,7 @@ class SwitchPortBaseEntity(SensorEntity):
                 sw_version=system.get("firmware"),
             )
             # Trigger device registry update
-            self.registry_entry_updated()
+            self.async_registry_entry_updated()
         
         self.coordinator.async_add_listener(_update_device_info)
         # Run once immediately if data already there
