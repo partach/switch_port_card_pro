@@ -19,6 +19,7 @@ from .const import SNMP_VERSION_TO_MP_MODEL
 
 _LOGGER = logging.getLogger(__name__)
 _SNMP_ENGINE = SnmpEngine()
+asyncio.get_event_loop().set_debug(False)
 
 # KILL MIB LOADING — THIS IS THE HOLY GRAIL
 # _SNMP_ENGINE.get_mib_builder().set_mib_sources()  # ← NO MORE BLOCKING I/O EVER
@@ -43,13 +44,14 @@ async def async_snmp_get(
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
-
+        obj_identity = ObjectIdentity(base_oid)
+        obj_identity.resolveWithMib(False)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
-            ObjectType(ObjectIdentity(oid).resolveWithMib(False)),
+            ObjectType(obj_identity),
         )
 
         if error_indication:
@@ -108,12 +110,15 @@ async def async_snmp_walk(
         # Use walk_cmd for the operation
         # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
         # But in v3arch.asyncio it returns an async iterator yielding these tuples
+        obj_identity = ObjectIdentity(base_oid)
+        obj_identity.resolveWithMib(False)
+
         iterator = walk_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
-            ObjectType(ObjectIdentity(base_oid).resolveWithMib(False)),
+            ObjectType(obj_identity),
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
         )
