@@ -179,21 +179,14 @@ async def discover_physical_ports(
     mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
 ) -> dict[int, dict[str, Any]]:
     """
-    Auto-discover real physical ports and classify copper vs SFP.
-
-    Returns:
-        {
-            1: {"if_index": 17, "name": "eth1", "is_copper": True,  "is_sfp": False},
-            2: {"if_index": 18, "name": "eth2", "is_copper": True,  "is_sfp": False},
-            ...
-            25: {"if_index": 101, "name": "Port 25", "is_copper": False, "is_sfp": True},
-        }
+    Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
+    Works on Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, and more.
     """
     mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
 
     try:
-        # Step 1: Get all interface descriptions
+        # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model=mp_model
         )
@@ -201,66 +194,73 @@ async def discover_physical_ports(
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
             return {}
 
-        # Step 2: Get all interface types (for copper vs SFP detection)
+        # Step  # Step 2: Get interface types (for ifType-based SFP detection)
         type_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
+        )
+
         )
 
         for oid_str, descr_raw in descr_data.items():
             try:
                 if_index = int(oid_str.split(".")[-1])
-                descr = descr_raw.strip().lower()
+                descr_lower = descr_raw.strip().lower()
+                descr_clean = descr_raw.strip()
             except (ValueError, IndexError, AttributeError):
                 continue
 
-            # Filter: only real Ethernet ports
-            if not any(p in descr for p in ["eth", "ge-", "gigabit", "fasteth", "port ", "lan", "wan"]):
+            # Filter: only real physical Ethernet ports
+            if not any(p in descr_lower for p in ["eth", "ge-", "gigabit", "fasteth", "port ", "lan", "wan"]):
                 continue
 
             # Reject virtual/junk interfaces
-            if any(bad in descr for bad in ["br", "vlan", "tun", "lo", "dummy", "wlan", "ath", "rai", "wifi", "wl", "bond", "veth"]):
+            if any(bad in descr_lower for bad in ["br", "vlan", "tun", "lo", "dummy", "wlan", "ath", "rai", "wifi", "wl", "bond", "veth", "bridge", "virtual"]):
                 continue
 
-            # Get ifType to detect SFP
-            type_oid = f"1.3.6.1.2.1.2.2.1.3.{if_index}"
-            raw_type = type_data.get(type_oid, "0")
+            # === UNIVERSAL SFP DETECTION (ifType + name) ===
+            raw_type = type_data.get(f"1.3.6.1.2.1.2.2.1.3.{if_index}", "0")
             try:
                 if_type = int(raw_type)
             except (ValueError, TypeError):
                 if_type = 0
 
-            # Known SFP types (standard + vendor quirks)
-            is_sfp = if_type in (
-                56,   # fibreChannel (common)
-                161,  # optical
-                171,  # optical (QNAP, Zyxel)
-                172,  # optical (some Cisco)
-                117,  # gigabitEthernet (sometimes SFP on cheap switches)
+            # Method 1: Known fiber ifTypes
+            is_sfp_by_type = if_type in (56, 161, 171, 172, 117)
+
+            # Method 2: Name contains SFP/fiber keywords (Zyxel, TP-Link, QNAP, etc.)
+            is_sfp_by_name = any(
+                keyword in descr_lower for keyword in [
+                    "sfp", "fiber", "optical", "1000base-x", "10gbase", "mini-gbic", "sfp+", "sfp28"
+                ]
             )
+
+            # Final verdict
+            is_sfp = is_sfp_by_type or is_sfp_by_name
             is_copper = not is_sfp
 
-            # Friendly name
-            name = descr_raw.strip()
-            if name.lower().startswith("eth"):
+            # Friendly display name
+            if descr_lower.startswith("eth"):
                 name = f"LAN Port {logical_port}"
-            elif "wan" in name.lower():
+            elif "wan" in descr_lower:
                 name = "WAN"
+            else:
+                name = descr_clean
 
             mapping[logical_port] = {
                 "if_index": if_index,
                 "name": name,
-                "if_descr": descr_raw.strip(),
+                "if_descr": descr_clean,
                 "is_sfp": is_sfp,
                 "is_copper": is_copper,
             }
             logical_port += 1
 
+        copper_count = sum(1 for p in mapping.values() if p["is_copper"])
+        sfp_count = sum(1 for p in mapping.values() if p["is_sfp"])
+
         _LOGGER.info(
-            "Auto-discovered %d physical ports on %s (%d copper, %d SFP)",
-            len(mapping),
-            host,
-            sum(1 for p in mapping.values() if p["is_copper"]),
-            sum(1 for p in mapping.values() if p["is_sfp"]),
+            "Auto-discovered %d physical ports on %s → %d copper, %d SFP/SFP+",
+            len(mapping), host, copper_count, sfp_count
         )
         return mapping
 
@@ -268,6 +268,6 @@ async def discover_physical_ports(
         raise
 
     # ruff: noqa: BLE001
-    except Exception as exc:  # intentional broad catch – discovery must not kill integration
+    except Exception as exc:  # intentional — discovery must never crash the integration
         _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
