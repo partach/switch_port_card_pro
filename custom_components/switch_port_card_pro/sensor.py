@@ -5,7 +5,6 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
-import homeassistant.helpers.device_registry as dr
 from homeassistant.helpers import device_registry
 from datetime import datetime
 from homeassistant.components.sensor import (
@@ -355,7 +354,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
         if not self.coordinator.data:
             return {}
         p = self.coordinator.data.ports.get(self.port, {})
-
+        
         # === LIFETIME VALUES (always available) ===
         raw_rx_bytes = p.get("rx", 0)
         raw_tx_bytes = p.get("tx", 0)
@@ -404,9 +403,9 @@ class PortStatusSensor(SwitchPortBaseEntity):
             attrs["vlan_id"] = p["vlan"]
         if has_poe:
             attrs.update({
-                "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
-                "poe_enabled": p.get("poe_status") in (1, 2, 4),
-                "poe_class": p.get("poe_status"),
+                "poe_power": round(p.get("poe_power", 0) / 1000.0, 2),
+                "poe_enabled": p.get("poe_enabled") in (1, 2, 4),
+                "poe_status": p.get("poe_status"),
             })
         return attrs
 
@@ -524,7 +523,7 @@ async def async_setup_entry(
 
     if detected:
         ports = list(detected.keys())  # ← all auto-detected ports: 28, 26, 52, whatever
-   else:
+    else:
         # Nothing detected → fall back to classic 8 ports
         ports = list(range(1, 9))  # or keep DEFAULT_PORTS if you prefer
         _LOGGER.warning("Auto-detection failed on %s → using default 8 ports", host)
@@ -560,7 +559,8 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Force first refresh to populate data immediately
-    await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
+    # this makes it not work, dunno why:
+    # await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
 
     # Create entities
     entities = [
