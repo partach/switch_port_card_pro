@@ -224,31 +224,20 @@ class SwitchPortBaseEntity(SensorEntity):
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str) -> None:
         self.coordinator = coordinator
         self.entry_id = entry_id
-        mac = None
-        if self.coordinator.data and self.coordinator.data.system.get("mac"):
-            mac = self.coordinator.data.system["mac"]
-        elif self.coordinator.data:
-            # Fallback: first port with non-zero MAC
-            for port_data in self.coordinator.data.ports.values():
-                raw_mac = port_data.get("mac")
-                if raw_mac and raw_mac != "00:00:00:00:00:00":
-                    mac = raw_mac
-                    break
 
-        # === CONNECTIONS: only add MAC if we actually have one ===
-        connections = set()
-        if mac:
-            connections.add((dr.CONNECTION_NETWORK_MAC, mac))
-        # STATIC DEVICE INFO (never changes)
+        # Get the real device MAC — we set this properly in the coordinator
+        mac: str | None = None
+        if self.coordinator.data:
+            mac = self.coordinator.data.system.get("mac")
+
+        # Add MAC to device registry only if we actually have a valid one
+        connections = {(dr.CONNECTION_NETWORK_MAC, mac)} if mac else None
+
+        # Only identifiers + connections go here — everything else is updated dynamically later
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-            connections=connections or None,
-            name=entry.title,  # temporary before SNMP poll
-            manufacturer=self.coordinator.data.system.get("manufacturer", "SNMP Device") if self.coordinator.data else "Device",
-            model=self.coordinator.data.system.get("model", "Unknown") if self.coordinator.data else "Unknown",          # updated dynamically later
-            sw_version=None,          # updated dynamically later
+            connections=connections,
         )
-
         # Auto update entity state when coordinator updates
         self._unsub_coordinator = coordinator.async_add_listener(self.async_write_ha_state)
 
