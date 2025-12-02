@@ -513,18 +513,29 @@ async def async_setup_entry(
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
     # AUTO-DETECT PORTS
-    user_ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
+    # === AUTO-DETECT PORTS — FINAL FIXED VERSION ===
     detected = await discover_physical_ports(hass, host, community, mp_model)
-    user_limit = entry.options.get(CONF_PORTS)
+
+    user_limit = entry.options.get(CONF_PORTS)   # ← can be None, int, or list like [12]
 
     if detected:
-        ports = list(detected.keys())
-        if user_limit and isinstance(user_limit, (list, tuple)) and user_limit:
-            ports = ports[:max(user_limit)]
-        _LOGGER.info("Using %d auto-detected ports on %s", len(ports), host)
+        ports = list(detected.keys())                # ← take all 28 (or whatever the switch has)
+
+        # Apply user limit only if explicitly set
+        if user_limit is not None:
+            if isinstance(user_limit, int):
+                ports = ports[:user_limit]
+            elif isinstance(user_limit, (list, tuple)) and user_limit:
+                # user_limit is e.g. [12] or [1,2,3,...,24]
+                limit = max(user_limit) if isinstance(user_limit[0], int) else len(user_limit)
+                ports = ports[:limit]
+            # else: ignore malformed limit
+
+        _LOGGER.info("Switch Port Card Pro: auto-detected %d ports on %s → showing %d", 
+                     len(detected), host, len(ports))
     else:
         ports = list(range(1, 9))
-        _LOGGER.warning("Auto-detection failed → using 8 ports")
+        _LOGGER.warning("Switch Port Card Pro: auto-detection failed on %s → falling back to 8 ports", host)
         
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
