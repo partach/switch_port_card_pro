@@ -214,8 +214,8 @@ class SwitchPortBaseEntity(SensorEntity):
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
             connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
             name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
-            manufacturer="SNMP Device",
-            model="Unknown",          # updated dynamically later
+            manufacturer="",
+            model=f"{entry_id}",          # updated dynamically later
             sw_version=None,          # updated dynamically later
         )
 
@@ -248,7 +248,7 @@ class SwitchPortBaseEntity(SensorEntity):
 
             raw_hostname = system.get("hostname") or ""
             device_name = raw_hostname.strip() or f"Switch {self.coordinator.host}"
-            model = (system.get("model") or "Unknown")
+            model = (system.get("model") or "")
             firmware = system.get("firmware")
 
             # Update device registry entry
