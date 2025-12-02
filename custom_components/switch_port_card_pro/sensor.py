@@ -117,7 +117,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 out = {}
                 for oid, val in raw.items():
                     try:
-                        idx = int(oid.split(".")[-1])
+                        parts = oid.split(".")
+                        idx = int(parts[-2]) if len(parts) > 1 and parts[-1] == '0' else int(parts[-1])
                         out[idx] = int(val) if int_val else val
                     except (ValueError, IndexError):
                         continue
@@ -138,6 +139,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             for port in self.ports:
                 p = str(port)
                 port_info = self.port_mapping.get(port) or {}
+                if not port_info:
+                    continue  # Skip if no mapping
                 if_index = port_info.get("if_index", port)  # fallback to port number if no mapping
                 ports_data[p] = {
                     "status": "off",
@@ -151,23 +154,23 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 }
 
                 # Use the real if_index for all lookups
-                if any(if_index in t for t in (status, speed, rx, tx, poe_power)):
-                    ports_data[p].update({
-                        "status": "on" if status.get(if_index, 2) == 1 else "off",
-                        "speed": speed.get(if_index, 0),
-                        "rx": rx.get(if_index, 0),
-                        "tx": tx.get(if_index, 0),
-                        "name": name.get(if_index, f"Port {port}"),
-                        "vlan": vlan.get(if_index),
-                        "poe_power": poe_power.get(if_index, 0),
-                        "poe_status": poe_status.get(if_index, 0),
-                    })
+
+                ports_data[p].update({
+                    "status": "on" if status.get(if_index, 2) == 1 else "off",
+                    "speed": speed.get(if_index, 0),
+                    "rx": rx.get(if_index, 0),
+                    "tx": tx.get(if_index, 0),
+                    "name": name.get(if_index, f"Port {port}"),
+                    "vlan": vlan.get(if_index),
+                    "poe_power": poe_power.get(if_index, 0),
+                    "poe_status": poe_status.get(if_index, 0),
+                })
 
                 total_rx += rx.get(if_index, 0)
                 total_tx += tx.get(if_index, 0)
                 total_poe_mw += poe_power.get(if_index, 0)
 
-            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
+            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024 * UPDATE_INTERVAL.total_seconds()), 2)
 
             # === SYSTEM OIDs ===
             raw_system = await async_snmp_bulk(
@@ -188,26 +191,11 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "hostname": get("hostname"),
                 "uptime": get("uptime"),
                 "firmware": get("firmware"),
+                "model": get("model"),
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
                 "poe_total_raw": get("poe_total"),
             }
-            # Try to get real device MAC (ifPhysAddress from first interface)
-            mac_raw = await async_snmp_walk(
-                self.hass, self.host, self.community, "1.3.6.1.2.1.2.2.1.6", mp_model=self.mp_model
-            )
-            device_mac = None
-            if mac_raw:
-                for oid, val in mac_raw.items():
-                    if val and len(val) == 6:
-                        device_mac = ":".join(f"{b:02x}" for b in val)
-                        break
-            system["mac"] = device_mac
-            system.update({
-                "mac": get("mac") or get("phys_address"),  # common OIDs
-                "manufacturer": get("vendor") or get("sysdescr_vendor") or "Unknown",
-                "model": get("model") or get("sysdescr_model") or "Unknown",
-                "hardware_version": get("hardware"),
-            })
+
             return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
 
         except Exception as err:
@@ -225,18 +213,12 @@ class SwitchPortBaseEntity(SensorEntity):
         self.coordinator = coordinator
         self.entry_id = entry_id
 
-        # Get the real device MAC — we set this properly in the coordinator
-        mac: str | None = None
-        if self.coordinator.data:
-            mac = self.coordinator.data.system.get("mac")
-
-        # Add MAC to device registry only if we actually have a valid one
-        connections = {(dr.CONNECTION_NETWORK_MAC, mac)} if mac else None
-
         # Only identifiers + connections go here — everything else is updated dynamically later
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-            connections=connections,
+            name=f"Switch Port: {self.coordinator.host}",
+            manufacturer="Generic SNMP Switch",
+            model="Unknown/Discovering",
         )
         # Auto update entity state when coordinator updates
         self._unsub_coordinator = coordinator.async_add_listener(self.async_write_ha_state)
@@ -434,7 +416,7 @@ class SystemCpuSensor(SwitchPortBaseEntity):
     """CPU usage sensor."""
     _attr_name = "CPU Usage"
     _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_device_class = SensorDeviceClass.POWER_FACTOR
+ #   _attr_device_class = SensorDeviceClass.POWER_FACTOR
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_unique_id_suffix = "system_cpu"
 
@@ -542,18 +524,7 @@ async def async_setup_entry(
 
     if detected:
         ports = list(detected.keys())  # ← all auto-detected ports: 28, 26, 52, whatever
-
-        if user_limit and isinstance(user_limit, list) and user_limit:
-            # User said: "only show first N ports"
-            max_count = max(user_limit)
-            ports = ports[:max_count]
-            _LOGGER.info(
-                "Auto-detected %d ports on %s → limited to first %d by user config",
-                len(detected), host, len(ports)
-            )
-        else:
-            _LOGGER.info("Auto-detected and using ALL %d physical ports on %s", len(ports), host)
-    else:
+   else:
         # Nothing detected → fall back to classic 8 ports
         ports = list(range(1, 9))  # or keep DEFAULT_PORTS if you prefer
         _LOGGER.warning("Auto-detection failed on %s → using default 8 ports", host)
