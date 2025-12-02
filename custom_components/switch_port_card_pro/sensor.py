@@ -167,8 +167,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 total_tx += tx.get(if_index, 0)
                 total_poe_mw += poe_power.get(if_index, 0)
 
-            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024 * UPDATE_INTERVAL.total_seconds()), 2)
-
+         #   bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024 * UPDATE_INTERVAL.total_seconds()), 2)
+            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
             # === SYSTEM OIDs ===
             raw_system = await async_snmp_bulk(
                 self.hass,
