@@ -5,6 +5,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
+import homeassistant.helpers.device_registry as dr
 from homeassistant.helpers import device_registry
 from datetime import datetime
 from homeassistant.components.sensor import (
@@ -116,8 +117,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 out = {}
                 for oid, val in raw.items():
                     try:
-                        parts = oid.split(".")
-                        idx = int(parts[-2]) if len(parts) > 1 and parts[-1] == '0' else int(parts[-1])
+                        idx = int(oid.split(".")[-1])
                         out[idx] = int(val) if int_val else val
                     except (ValueError, IndexError):
                         continue
@@ -138,8 +138,6 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             for port in self.ports:
                 p = str(port)
                 port_info = self.port_mapping.get(port) or {}
-                if not port_info:
-                    continue  # Skip if no mapping
                 if_index = port_info.get("if_index", port)  # fallback to port number if no mapping
                 ports_data[p] = {
                     "status": "off",
@@ -153,17 +151,17 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 }
 
                 # Use the real if_index for all lookups
-
-                ports_data[p].update({
-                    "status": "on" if status.get(if_index, 2) == 1 else "off",
-                    "speed": speed.get(if_index, 0),
-                    "rx": rx.get(if_index, 0),
-                    "tx": tx.get(if_index, 0),
-                    "name": name.get(if_index, f"Port {port}"),
-                    "vlan": vlan.get(if_index),
-                    "poe_power": poe_power.get(if_index, 0),
-                    "poe_status": poe_status.get(if_index, 0),
-                })
+                if any(if_index in t for t in (status, speed, rx, tx, poe_power)):
+                    ports_data[p].update({
+                        "status": "on" if status.get(if_index, 2) == 1 else "off",
+                        "speed": speed.get(if_index, 0),
+                        "rx": rx.get(if_index, 0),
+                        "tx": tx.get(if_index, 0),
+                        "name": name.get(if_index, f"Port {port}"),
+                        "vlan": vlan.get(if_index),
+                        "poe_power": poe_power.get(if_index, 0),
+                        "poe_status": poe_status.get(if_index, 0),
+                    })
 
                 total_rx += rx.get(if_index, 0)
                 total_tx += tx.get(if_index, 0)
@@ -190,7 +188,6 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "hostname": get("hostname"),
                 "uptime": get("uptime"),
                 "firmware": get("firmware"),
-                "model": get("model"),
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
                 "poe_total_raw": get("poe_total"),
             }
@@ -212,13 +209,16 @@ class SwitchPortBaseEntity(SensorEntity):
         self.coordinator = coordinator
         self.entry_id = entry_id
 
-        # Only identifiers + connections go here — everything else is updated dynamically later
+        # STATIC DEVICE INFO (never changes)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-            name=f"Switch Port: {self.coordinator.host}",
-            manufacturer="Generic SNMP Switch",
-            model="Unknown/Discovering",
+            connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
+            name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
+            manufacturer="SNMP Device",
+            model="Unknown",          # updated dynamically later
+            sw_version=None,          # updated dynamically later
         )
+
         # Auto update entity state when coordinator updates
         self._unsub_coordinator = coordinator.async_add_listener(self.async_write_ha_state)
 
@@ -321,15 +321,13 @@ class FirmwareSensor(SwitchPortBaseEntity):
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["off", "on"]    
     _attr_has_entity_name = True
     _attr_should_poll = False
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str, port: int) -> None:
         super().__init__(coordinator, entry_id)
         self.port = str(port)
-        self._attr_name = f"Port {port}"
-        self._attr_unique_id = f"{entry_id}_port_{port}_status"
+        self._attr_name = f"Port {port} Status"
+        self._attr_unique_id = f"{entry_id}_{self.coordinator.host}_port_{port}_status"
         self._attr_icon = "mdi:lan"
 
         # For live traffic calculation
@@ -354,7 +352,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
         if not self.coordinator.data:
             return {}
         p = self.coordinator.data.ports.get(self.port, {})
-        
+
         # === LIFETIME VALUES (always available) ===
         raw_rx_bytes = p.get("rx", 0)
         raw_tx_bytes = p.get("tx", 0)
@@ -403,9 +401,9 @@ class PortStatusSensor(SwitchPortBaseEntity):
             attrs["vlan_id"] = p["vlan"]
         if has_poe:
             attrs.update({
-                "poe_power": round(p.get("poe_power", 0) / 1000.0, 2),
-                "poe_enabled": p.get("poe_enabled") in (1, 2, 4),
-                "poe_status": p.get("poe_status"),
+                "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
+                "poe_enabled": p.get("poe_status") in (1, 2, 4),
+                "poe_class": p.get("poe_status"),
             })
         return attrs
 
@@ -415,7 +413,7 @@ class SystemCpuSensor(SwitchPortBaseEntity):
     """CPU usage sensor."""
     _attr_name = "CPU Usage"
     _attr_native_unit_of_measurement = PERCENTAGE
- #   _attr_device_class = SensorDeviceClass.POWER_FACTOR
+    _attr_device_class = SensorDeviceClass.POWER_FACTOR
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_unique_id_suffix = "system_cpu"
 
@@ -514,19 +512,20 @@ async def async_setup_entry(
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
-    
     # AUTO-DETECT PORTS
+    user_ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
     detected = await discover_physical_ports(hass, host, community, mp_model)
-
-    # Check if user explicitly set a port limit in Options
-    user_limit = entry.options.get(CONF_PORTS)  # can be None, [], or [1,2,...,n]
+    user_limit = entry.options.get(CONF_PORTS)
 
     if detected:
-        ports = list(detected.keys())  # ← all auto-detected ports: 28, 26, 52, whatever
+        ports = list(detected.keys())
+        if user_limit and isinstance(user_limit, (list, tuple)) and user_limit:
+            ports = ports[:max(user_limit)]
+        _LOGGER.info("Using %d auto-detected ports on %s", len(ports), host)
     else:
-        # Nothing detected → fall back to classic 8 ports
-        ports = list(range(1, 9))  # or keep DEFAULT_PORTS if you prefer
-        _LOGGER.warning("Auto-detection failed on %s → using default 8 ports", host)
+        ports = list(range(1, 9))
+        _LOGGER.warning("Auto-detection failed → using 8 ports")
+        
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
@@ -559,8 +558,7 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Force first refresh to populate data immediately
-    # this makes it not work, dunno why:
-    # await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
+  #  await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
 
     # Create entities
     entities = [
