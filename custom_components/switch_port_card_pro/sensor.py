@@ -533,17 +533,30 @@ async def async_setup_entry(
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
-    # AUTO-DETECT PORTS
-    user_ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
-    detected = await discover_physical_ports(hass, host, community, mp_model)
     
+    # AUTO-DETECT PORTS
+    detected = await discover_physical_ports(hass, host, community, mp_model)
+
+    # Check if user explicitly set a port limit in Options
+    user_limit = entry.options.get(CONF_PORTS)  # can be None, [], or [1,2,...,n]
+
     if detected:
-        ports = list(detected.keys())[:max(user_ports)]  # respect user limit
-        _LOGGER.info("Auto-detected %d physical ports on %s", len(ports), host)
+        ports = list(detected.keys())  # ← all auto-detected ports: 28, 26, 52, whatever
+
+        if user_limit and isinstance(user_limit, list) and user_limit:
+            # User said: "only show first N ports"
+            max_count = max(user_limit)
+            ports = ports[:max_count]
+            _LOGGER.info(
+                "Auto-detected %d ports on %s → limited to first %d by user config",
+                len(detected), host, len(ports)
+            )
+        else:
+            _LOGGER.info("Auto-detected and using ALL %d physical ports on %s", len(ports), host)
     else:
-        ports = user_ports
-        _LOGGER.info("No auto-detect, using user config: %d ports", len(ports))
-        
+        # Nothing detected → fall back to classic 8 ports
+        ports = list(range(1, 9))  # or keep DEFAULT_PORTS if you prefer
+        _LOGGER.warning("Auto-detection failed on %s → using default 8 ports", host)
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
