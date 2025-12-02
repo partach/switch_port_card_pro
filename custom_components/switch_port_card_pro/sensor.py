@@ -191,7 +191,23 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
                 "poe_total_raw": get("poe_total"),
             }
-
+            # Try to get real device MAC (ifPhysAddress from first interface)
+            mac_raw = await async_snmp_walk(
+                self.hass, self.host, self.community, "1.3.6.1.2.1.2.2.1.6", mp_model=self.mp_model
+            )
+            device_mac = None
+            if mac_raw:
+                for oid, val in mac_raw.items():
+                    if val and len(val) == 6:
+                        device_mac = ":".join(f"{b:02x}" for b in val)
+                        break
+            system["mac"] = device_mac
+            system.update({
+                "mac": get("mac") or get("phys_address"),  # common OIDs
+                "manufacturer": get("vendor") or get("sysdescr_vendor") or "Unknown",
+                "model": get("model") or get("sysdescr_model") or "Unknown",
+                "hardware_version": get("hardware"),
+            })
             return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
 
         except Exception as err:
@@ -208,14 +224,28 @@ class SwitchPortBaseEntity(SensorEntity):
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str) -> None:
         self.coordinator = coordinator
         self.entry_id = entry_id
+        mac = None
+        if self.coordinator.data and self.coordinator.data.system.get("mac"):
+            mac = self.coordinator.data.system["mac"]
+        elif self.coordinator.data:
+            # Fallback: first port with non-zero MAC
+            for port_data in self.coordinator.data.ports.values():
+                raw_mac = port_data.get("mac")
+                if raw_mac and raw_mac != "00:00:00:00:00:00":
+                    mac = raw_mac
+                    break
 
+        # === CONNECTIONS: only add MAC if we actually have one ===
+        connections = set()
+        if mac:
+            connections.add((dr.CONNECTION_NETWORK_MAC, mac))
         # STATIC DEVICE INFO (never changes)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-            connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},
-            name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
-            manufacturer="SNMP Device",
-            model="Unknown",          # updated dynamically later
+            connections=connections or None,
+            name=entry.title,  # temporary before SNMP poll
+            manufacturer=self.coordinator.data.system.get("manufacturer", "SNMP Device") if self.coordinator.data else "Device",
+            model=self.coordinator.data.system.get("model", "Unknown") if self.coordinator.data else "Unknown",          # updated dynamically later
             sw_version=None,          # updated dynamically later
         )
 
@@ -321,12 +351,14 @@ class FirmwareSensor(SwitchPortBaseEntity):
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["off", "on"]    
     _attr_has_entity_name = True
     _attr_should_poll = False
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str, port: int) -> None:
         super().__init__(coordinator, entry_id)
         self.port = str(port)
-        self._attr_name = f"Port {port} Status"
+        self._attr_name = f"Port {port}"
         self._attr_unique_id = f"{entry_id}_port_{port}_status"
         self._attr_icon = "mdi:lan"
 
@@ -555,7 +587,7 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Force first refresh to populate data immediately
-  #  await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
+    await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
 
     # Create entities
     entities = [
