@@ -1,4 +1,8 @@
 # Changelog
+## [0.5.3] - 
+- Not showing POE attributes when not configured (no oids available)
+- First rudimentory version of auto (number of) ports detection ('interface'description part of port attribute) 
+ 
 ## [0.5.2] - live rx/tx support
 - Based on lifetime rx/tx counter determine the current rx/tx speed per port
 - Boolean setting in UI to turn on and off the real time rx/tx speeds display
