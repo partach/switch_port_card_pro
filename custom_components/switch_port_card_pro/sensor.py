@@ -512,30 +512,47 @@ async def async_setup_entry(
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
-    # AUTO-DETECT PORTS
+
     # === AUTO-DETECT PORTS — FINAL FIXED VERSION ===
     detected = await discover_physical_ports(hass, host, community, mp_model)
 
     user_limit = entry.options.get(CONF_PORTS)   # ← can be None, int, or list like [12]
 
+    # === AUTO-DETECT PORTS ===
+    detected = await discover_physical_ports(hass, host, community, mp_model)
+    user_limit = entry.options.get(CONF_PORTS)
+    
     if detected:
-        ports = list(detected.keys())                # ← take all 28 (or whatever the switch has)
-
-        # Apply user limit only if explicitly set
-        if user_limit is not None:
+        # ALWAYS coerce to integers (critical!)
+        ports = sorted(int(p) for p in detected.keys())
+    
+        if user_limit:
             if isinstance(user_limit, int):
                 ports = ports[:user_limit]
-            elif isinstance(user_limit, (list, tuple)) and user_limit:
-                # user_limit is e.g. [12] or [1,2,3,...,24]
-                limit = max(user_limit) if isinstance(user_limit[0], int) else len(user_limit)
-                ports = ports[:limit]
-            # else: ignore malformed limit
-
-        _LOGGER.info("Switch Port Card Pro: auto-detected %d ports on %s → showing %d", 
-                     len(detected), host, len(ports))
+            elif isinstance(user_limit, (list, tuple)):
+                ports = ports[:max(user_limit)]
+    
+        _LOGGER.info(
+            "Switch Port Card Pro: using %d of %d detected ports on %s",
+            len(ports),
+            len(detected),
+            host,
+        )
     else:
         ports = list(range(1, 9))
-        _LOGGER.warning("Switch Port Card Pro: auto-detection failed on %s → falling back to 8 ports", host)
+        _LOGGER.warning("Auto-detection failed → using 8 ports")
+    
+    # === ONE-TIME OPTION AUTO-FILL ===
+    # Only set this ONCE: when options are empty and detection succeeded.
+    if detected and not entry.options.get(CONF_PORTS):
+        new_options = dict(entry.options)
+        new_options[CONF_PORTS] = list(range(1, len(ports) + 1))
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        _LOGGER.info(
+            "First install: auto-set 'Ports to show' to %d detected ports",
+            len(ports),
+        )
+
         
     # Build OID sets from options, falling back to const.py defaults
     base_oids = {
