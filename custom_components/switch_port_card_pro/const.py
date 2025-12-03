@@ -9,7 +9,7 @@ CONF_HOST: Final = "host"
 CONF_COMMUNITY: Final = "community"
 CONF_PORTS: Final = "ports"
 CONF_INCLUDE_VLANS: Final = "include_vlans"
-
+CONF_SFP_PORTS_START = "sfp_ports_start"
 # Option keys (used in config flow)
 CONF_OID_RX: Final = "oid_rx"
 CONF_OID_TX: Final = "oid_tx"
