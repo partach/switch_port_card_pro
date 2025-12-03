@@ -1,5 +1,16 @@
 # Changelog
-## [0.5.3] - 
+
+## [0.5.4] - Extensions
+- VLAN indication per port visual in the card
+- Fully auto port detection (via SNMP)
+- Title enable/disable per port section
+- System information show / hide
+### Fixed
+- 32 bit counter wrap around issue for actual tx/rx speed
+- Issue with auto port detection not updating config settings
+
+
+## [0.5.3] - Improvements
 - Not showing POE attributes when not configured (no oids available)
 - First rudimentory version of auto (number of) ports detection ('interface'description part of port attribute) 
  
