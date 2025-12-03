@@ -21,6 +21,8 @@ class SwitchPortCardPro extends HTMLElement {
       max_bandwidth_gbps: 100,
       compact_mode: false,
       show_live_traffic: false,
+      show_system_info: true,
+      show_port_type_labels: true,
     };
   }
 
@@ -33,6 +35,8 @@ class SwitchPortCardPro extends HTMLElement {
       max_bandwidth_gbps: 100,
       compact_mode: false,
       show_live_traffic: false,
+      show_system_info: true,
+      show_port_type_labels: true,
       ...config
     };
   }
@@ -103,6 +107,12 @@ class SwitchPortCardPro extends HTMLElement {
     const c = this._config.compact_mode ? "compact" : "";
     this.shadowRoot.innerHTML = `
       <style>
+        .section-hidden {
+          display: none !important;
+        }
+        .section-hidden + .ports-grid {
+          margin-top: 8px; /* adjust to taste */
+        }
         :host{display:block;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color);padding:7px;border-radius:var(--ha-card-border-radius,12px);font-family:var(--ha-font-family,Roboto)}
         .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.2em;font-weight:600}
         .system-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:20px 0 8px 0}
@@ -138,8 +148,11 @@ class SwitchPortCardPro extends HTMLElement {
         <div class="header"><span id="title">Switch</span><span id="bandwidth">— Mbps</span></div>
         <div class="gauge" id="gauge"><div class="gauge-fill" id="fill"></div></div>
         <div class="ports-section ${c}">
-          <div class="section-label">COPPER</div><div class="ports-grid" id="copper"></div>
-          <div class="section-label">FIBER</div><div class="ports-grid" id="sfp"></div>
+          <div class="section-label ${this._config.show_port_type_labels ? '' : 'section-hidden'}">COPPER</div>
+          <div class="ports-grid" id="copper"></div>
+
+          <div class="section-label ${this._config.show_port_type_labels ? '' : 'section-hidden'}">FIBER</div>
+          <div class="ports-grid" id="sfp"></div>
         </div>
         <div class="system-grid ${c}" id="system"></div>
       </ha-card>
@@ -187,15 +200,18 @@ class SwitchPortCardPro extends HTMLElement {
     this.shadowRoot.getElementById("bandwidth").textContent = bwText;
 
     // System boxes
-    this.shadowRoot.getElementById("system").innerHTML = `
-      ${cpu?.state?`<div class="info-box"><div class="info-value">${Math.round(cpu.state)}%</div><div class="info-label">CPU</div></div>`:''}
-      ${mem?.state?`<div class="info-box"><div class="info-value">${Math.round(mem.state)}%</div><div class="info-label">Memory</div></div>`:''}
-      ${up?.state?`<div class="info-box"><div class="info-value">${this._formatTime(Number(up.state))}</div><div class="info-label">Uptime</div></div>`:''}
-      ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
-      ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
-      ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}
-    `;
-
+    if (this._config.show_system_info === true) { 
+      this.shadowRoot.getElementById("system").innerHTML = `
+        ${cpu?.state?`<div class="info-box"><div class="info-value">${Math.round(cpu.state)}%</div><div class="info-label">CPU</div></div>`:''}
+        ${mem?.state?`<div class="info-box"><div class="info-value">${Math.round(mem.state)}%</div><div class="info-label">Memory</div></div>`:''}
+        ${up?.state?`<div class="info-box"><div class="info-value">${this._formatTime(Number(up.state))}</div><div class="info-label">Uptime</div></div>`:''}
+        ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
+        ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
+        ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}`;
+    }
+    else {
+      this.shadowRoot.getElementById("system").innerHTML = ``;
+    }
     // Gauge
     const gauge=this.shadowRoot.getElementById("gauge"), fill=this.shadowRoot.getElementById("fill");
     if (this._config.show_total_bandwidth!==false && bw?.state) {
@@ -236,6 +252,7 @@ class SwitchPortCardPro extends HTMLElement {
       const name = ent.attributes?.port_name?.trim() || `Port ${i}`;
       const vlan = ent.attributes?.vlan_id;
       const poeEnabled = ent.attributes?.poe_enabled===true;
+      const ifDescr = ent.attributes?.interface || "";
 
       // Safe attribute reading
       const rxBps = parseInt(
@@ -285,7 +302,14 @@ class SwitchPortCardPro extends HTMLElement {
 
       const div = document.createElement("div");
       div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""}`;
-      div.title = `${name}\nState: ${isOn?"UP":"DOWN"}\nSpeed: ${speedText}${vlan?`\nVLAN: ${vlan}`:""}\nRX: ${(rxBps/1e6).toFixed(2)} Mb/s\nTX: ${(txBps/1e6).toFixed(2)} Mb/s`;
+      div.title =
+        `${name}` +
+        (ifDescr ? `\nInterface: ${ifDescr}` : "") +
+        `\nState: ${isOn ? "UP" : "DOWN"}` +
+        `\nSpeed: ${speedText}` +
+        (vlan ? `\nVLAN: ${vlan}` : "") +
+        `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
+        `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s`;
       div.innerHTML = `
         <div class="port-num">${i}</div>
         ${liveHTML}
@@ -363,6 +387,17 @@ class SwitchPortCardProEditor extends HTMLElement {
           <ha-checkbox data-key="show_live_traffic" ${this._config.show_live_traffic?'checked':''}></ha-checkbox>
           <span class="checkbox-label">Show Live Traffic (Down Up Mbps)</span>
         </div>
+          <!-- REQUEST 1: Show System Info Switch -->
+          <div class="checkbox-row">
+            <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
+          </div>
+          
+          <!-- REQUEST 4: Show Port Section Names Switch -->
+          <div class="checkbox-row">
+            <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
+          </div>
       </div>
     `;
 
