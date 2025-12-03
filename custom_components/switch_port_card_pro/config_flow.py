@@ -74,7 +74,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_COMMUNITY: user_input[CONF_COMMUNITY],
                     },
                     options={
-                        CONF_PORTS: DEFAULT_PORTS,
+    #                    CONF_PORTS: DEFAULT_PORTS, # removed for auto port detection
                         CONF_INCLUDE_VLANS: False,
                         "snmp_version": "v2c",
                         "oid_rx": DEFAULT_BASE_OIDS["rx"],
