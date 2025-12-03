@@ -123,7 +123,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                         continue
                 return out
 
-             = parse(walk_map.get("", {}))
+            rx = parse(walk_map.get("rx", {}))
             tx = parse(walk_map.get("tx", {}))
             status = parse(walk_map.get("status", {}))
             speed = parse(walk_map.get("speed", {}))
