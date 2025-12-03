@@ -513,47 +513,48 @@ async def async_setup_entry(
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
 
-    # === AUTO-DETECT PORTS 
-    detected = await discover_physical_ports(hass, host, community, mp_model)
-    # Check if this is first install (no CONF_PORTS set yet)
-    is_first_install = CONF_PORTS not in entry.options
-
+    # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
     detected = await discover_physical_ports(hass, host, community, mp_model)
 
     if detected:
-        ports = sorted(int(p) for p in detected.keys())
-        if is_first_install:
-            # First install: use ALL detected ports and save to config
+        # Always work with clean, sorted integers
+        all_ports = sorted(int(p) for p in detected.keys())
+
+        # First-time install? → auto-configure everything
+        if CONF_PORTS not in entry.options:
             new_options = dict(entry.options)
-            new_options[CONF_PORTS] = list(range(1, len(ports) + 1))
+
+            # 1. Auto-set total number of ports
+            new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
+
+            # 2. Auto-detect and set SFP start (if any SFP ports exist)
+            sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
+            if sfp_ports:
+                new_options["sfp_ports_start"] = min(sfp_ports)
+
             hass.config_entries.async_update_entry(entry, options=new_options)
             _LOGGER.info(
-                "First install: detected %d ports on %s, saved to config",
-                len(ports), host
-            )
+                "First install: auto-configured %d ports on %s (SFP starts at %s)",
+                         len(all_ports), host, new_options.get("sfp_ports_start", "none"))
+
+            # On first install, use ALL ports
+            ports = all_ports.copy()
         else:
-            # Subsequent loads: respect user's port limit from options
+            # Not first install → respect user choice
             user_limit = entry.options.get(CONF_PORTS, [])
-            if user_limit and isinstance(user_limit, list):
-                max_port = max(user_limit) if user_limit else len(ports)
-                ports = ports[:max_port]
-        
-    _LOGGER.info("Using %d ports on %s", len(ports), host)
-else:
-    # Fallback if detection fails
-    ports = list(range(1, 9))
-    _LOGGER.warning("Auto-detection failed on %s → using default 8 ports", host)
+            if isinstance(user_limit, list) and user_limit:
+                max_port = max(user_limit)
+                ports = [p for p in all_ports if p <= max_port]
+            else:
+                ports = all_ports.copy()  # safety fallback
+
+        _LOGGER.info("Using %d ports on %s", len(ports), host)
+
+    else:
+        # Detection completely failed
+        ports = list(range(1, 9))
+        _LOGGER.warning("Port auto-detection failed on %s → falling back to 8 ports", host)
     
-    # === ONE-TIME OPTION AUTO-FILL ===
-    # Only set this ONCE: when options are empty and detection succeeded.
-    if detected and not entry.options.get(CONF_PORTS):
-        new_options = dict(entry.options)
-        new_options[CONF_PORTS] = list(range(1, len(ports) + 1))
-        hass.config_entries.async_update_entry(entry, options=new_options)
-        _LOGGER.info(
-            "First install: auto-set 'Ports to show' to %d detected ports",
-            len(ports),
-        )
 
         
     # Build OID sets from options, falling back to const.py defaults
