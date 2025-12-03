@@ -212,7 +212,7 @@ class SwitchPortBaseEntity(SensorEntity):
         # STATIC DEVICE INFO (never changes)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-    #        connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},  # seems to only show IP address if using this here
+            connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},  # seems to only show IP address if using this here
             name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
             manufacturer="",
             model=f"{entry_id}",          # updated dynamically later
