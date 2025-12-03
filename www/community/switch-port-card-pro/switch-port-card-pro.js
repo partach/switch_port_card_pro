@@ -113,6 +113,15 @@ class SwitchPortCardPro extends HTMLElement {
         .section-hidden + .ports-grid {
           margin-top: 8px; /* adjust to taste */
         }
+        .vlan-dot {
+          position: absolute;
+          top: 2px;
+          left: 3px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          box-shadow: 0 0 2px rgba(0,0,0,0.9);
+        }
         :host{display:block;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color);padding:7px;border-radius:var(--ha-card-border-radius,12px);font-family:var(--ha-font-family,Roboto)}
         .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.2em;font-weight:600}
         .system-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:20px 0 8px 0}
@@ -157,6 +166,21 @@ class SwitchPortCardPro extends HTMLElement {
         <div class="system-grid ${c}" id="system"></div>
       </ha-card>
     `;
+  }
+
+  _vlanColor(vlan) {
+    if (!vlan) return "transparent";
+
+    // 20 distinct colors – consistent per VLAN
+    const colors = [
+      "#e1a1b6ff", "#4ba79cff", "#a282d8ff", "#434f94ff", "#57a5e4ff",
+      "#015881ff", "#00bcd4", "#009688", "#4caf50", "#8bc34a",
+      "#ffc107", "#ff9800", "#ff5722", "#795548", "#607d8b",
+      "#4fc3f7", "#ba68c8", "#ffb74d", "#aed581", "#ce93d8"
+    ];
+
+    // deterministic color index:
+    return colors[vlan % colors.length];
   }
 
   _formatTime(s) {
@@ -311,6 +335,7 @@ class SwitchPortCardPro extends HTMLElement {
         `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
         `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s`;
       div.innerHTML = `
+        <div class="vlan-dot" style="background:${this._vlanColor(vlan)}"></div>
         <div class="port-num">${i}</div>
         ${liveHTML}
         <div class="port-status">${statusText}</div>
