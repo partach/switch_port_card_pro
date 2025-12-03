@@ -92,7 +92,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     for p in self.ports
                 }            
             # === PORT WALKS ===
-            oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status"]
+            oids_to_walk = ["", "tx", "status", "speed", "name", "poe_power", "poe_status"]
             if self.include_vlans and self.base_oids.get("vlan"):
                 oids_to_walk.append("vlan")
 
@@ -123,7 +123,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                         continue
                 return out
 
-            rx = parse(walk_map.get("rx", {}))
+             = parse(walk_map.get("", {}))
             tx = parse(walk_map.get("tx", {}))
             status = parse(walk_map.get("status", {}))
             speed = parse(walk_map.get("speed", {}))
@@ -369,8 +369,37 @@ class PortStatusSensor(SwitchPortBaseEntity):
 
             delta_time = now - self._last_update
             if delta_time > 0:
-                rx_bps_live = int((raw_rx_bytes - self._last_rx_bytes) * 8 / delta_time)
-                tx_bps_live = int((raw_tx_bytes - self._last_tx_bytes) * 8 / delta_time)
+                # --- RAW DELTAS ---
+                delta_rx = raw_rx_bytes - self._last_rx_bytes
+                delta_tx = raw_tx_bytes - self._last_tx_bytes
+        
+                # --- HANDLE 32-bit WRAPAROUND ---
+                # Most switches use 32-bit counters for ifHC* until > 4GB
+                MAX32 = 4294967296  # 2^32
+        
+                if delta_rx < 0:
+                    # If previous value was "close" to wrap limit → wrap happened
+                    if self._last_rx_bytes > 3_000_000_000:
+                        delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
+                    else:
+                        # real counter reset (port down/up)
+                        delta_rx = 0
+        
+                if delta_tx < 0:
+                    if self._last_tx_bytes > 3_000_000_000:
+                        delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
+                    else:
+                        delta_tx = 0
+        
+                # --- COMPUTE LIVE BPS ---
+                rx_bps_live = int(delta_rx * 8 / delta_time)
+                tx_bps_live = int(delta_tx * 8 / delta_time)
+        
+                # --- FINAL SAFETY CLAMP ---
+                if rx_bps_live < 0:
+                    rx_bps_live = 0
+                if tx_bps_live < 0:
+                    tx_bps_live = 0
 
         # Store for next poll
         self._last_rx_bytes = raw_rx_bytes
