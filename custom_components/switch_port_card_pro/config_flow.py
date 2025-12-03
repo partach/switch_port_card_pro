@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_PORTS,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
+    CONF_SFP_PORTS_START,
 )
 
 _LOGGER = logging.getLogger(__name__)
