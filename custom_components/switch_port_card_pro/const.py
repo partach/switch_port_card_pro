@@ -19,7 +19,7 @@ CONF_OID_NAME: Final = "oid_name"
 CONF_OID_VLAN: Final = "oid_vlan"
 CONF_OID_POE_POWER: Final = "oid_poe_power"
 CONF_OID_POE_STATUS: Final = "oid_poe_status"
-CONF_OID_POE_TOTAL: Final = "oid_poe_total"
+CONF_OID_CUSTOM: Final = "oid_custom"
 CONF_OID_CPU: Final = "oid_cpu"
 CONF_OID_MEMORY: Final = "oid_memory"
 CONF_OID_FIRMWARE: Final = "oid_firmware"
@@ -54,5 +54,5 @@ DEFAULT_SYSTEM_OIDS: Final = {
     "firmware": "",                      # Usually private
     "hostname": "1.3.6.1.2.1.1.5.0",     # sysName — works everywhere
     "uptime": "1.3.6.1.2.1.1.3.0",       # sysUpTime — universal
-    "poe_total": "",                     # Usually private — user sets
+    "oid_custom": "",                     # user sets
 }
