@@ -308,9 +308,9 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                     "snmp_version",
                     default=current.get("snmp_version", "v2c"),
                 ): vol.In({"v2c": "v2c", "v1": "v1"}),
- #               vol.Optional(
- #                   CONF_SFP_PORTS_START, default=25 # for a 24 port switch
- #               ): vol.All(vol.Coerce(int), vol.Range(min=1, max=52)),
+                vol.Optional(
+                    CONF_SFP_PORTS_START, default=25 # for a 24 port switch
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=52)),
             }
         )
 
