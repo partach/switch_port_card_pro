@@ -148,9 +148,9 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             
 
             try:
-             #   new = {**current, **user_input}
-             #   return self.async_create_entry(title="", data=new)
-                return self.async_create_entry(title="", data=user_input)
+                new = {**current, **user_input}
+                return self.async_create_entry(title="", data=new)
+             #   return self.async_create_entry(title="", data=user_input)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
                 return self.async_abort(reason="Error storing input")            
@@ -180,131 +180,62 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_rx",
                     default=current.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="RX OID for RX Counter",
-                        subtitle="Will be use in live RX calculation",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="RX OID for RX Counter",subtitle="Will be use in live RX calculation",)),
                 vol.Optional(
                     "oid_tx",
                     default=current.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="TX OID for TX Counter",
-                        subtitle="Will be use in live TX calculation",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(ype=selector.TextSelectorType.TEXT,title="TX OID for TX Counter",subtitle="Will be use in live TX calculation",)),
                 vol.Optional(
                     "oid_status",
                     default=current.get("oid_status", DEFAULT_BASE_OIDS["status"]),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Port Status OID",
-                        subtitle="To determine port on/off",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Port Status OID",subtitle="To determine port on/off",)),
                 vol.Optional(
                     "oid_speed",
                     default=current.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Port Speed OID",
-                        subtitle="To determine port speed (10M/100M/1G/...)",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Port Speed OID",subtitle="To determine port speed (10M/100M/1G/...)",)),
                 vol.Optional(
                     "oid_name",
                     default=current.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Port Name OID",
-                        subtitle="To user given name of the port in switch config",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Port Name OID",subtitle="To user given name of the port in switch config",)),
                 vol.Optional(
                     "oid_vlan",
                     default=current.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Port Vlan OID",
-                        subtitle="To determine Vlan ID of port",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Port Vlan OID",subtitle="To determine Vlan ID of port",)),
 
                 # --- System OIDs ---
                 vol.Optional(
                     "oid_cpu",
                     default=current.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="CPU load percentage OID",
-                        subtitle="Must be return percentage value",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="CPU load percentage OID",subtitle="Must be return percentage value",)),
                 vol.Optional(
                     "oid_firmware",
                     default=current.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Firmware version string OID",
-                        subtitle="Retrieved text is used directly",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Firmware version string OID",subtitle="Retrieved text is used directly",)),
                 vol.Optional(
                     "oid_memory",
                     default=current.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Memory load percentage OID",
-                        subtitle="Must be return percentage value",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Memory load percentage OID",subtitle="Must be return percentage value",)),
                 vol.Optional(
                     "oid_hostname",
                     default=current.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Switch name/type OID",
-                        subtitle="Retrieved text is used directly",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Switch name/type OID",subtitle="Retrieved text is used directly",)),
                 vol.Optional(
                     "oid_uptime",
                     default=current.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Up time OID",
-                        subtitle="Time in seconds is translated to D:H:M",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Up time OID",subtitle="Time in seconds is translated to D:H:M",)),
                 vol.Optional(
                     "oid_poe_power",
                     default=current.get("oid_poe_power", DEFAULT_SYSTEM_OIDS.get("poe_power", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="POE Port Power OID",
-                        subtitle="POE power for port is required",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="POE Port Power OID",subtitle="POE power for port is required",)),
                 vol.Optional(
                     "oid_poe_status",
                     default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="POE Port Status OID",
-                        subtitle="POE status retrieval per port",
-                        )
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,itle="POE Port Status OID",subtitle="POE status retrieval per port",)
                 ),
                 vol.Optional(
                     "oid_custom",
                     default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        title="Custom OID",
-                        subtitle="Result of retrieving this OID will be directly displayed in the system part of the card",
-                        )
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,title="Custom OID",subtitle="Result of retrieving this OID will be directly displayed in the system part of the card",)),
                 vol.Optional(
                     "snmp_version",
                     default=current.get("snmp_version", "v2c"),
