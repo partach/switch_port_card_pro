@@ -44,7 +44,7 @@ from .snmp_helper import (
     discover_physical_ports,
 )
 _LOGGER = logging.getLogger(__name__)
-UPDATE_INTERVAL = timedelta(seconds=20)
+update_seconds = entry.options.get("update_interval", 20)
 
 
 @dataclass
@@ -65,12 +65,13 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         system_oids: dict[str, str],
         snmp_version: str,
         include_vlans: bool,
+        update_seconds: int,
     ) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{host}",
-            update_interval=UPDATE_INTERVAL,
+            update_interval=timedelta(seconds=update_seconds),
         )
         self.host = host
         self.community = community
@@ -212,7 +213,7 @@ class SwitchPortBaseEntity(SensorEntity):
         # STATIC DEVICE INFO (never changes)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
-            connections={(dr.CONNECTION_NETWORK_MAC, self.coordinator.host)},  # seems to only show IP address if using this here
+            connections=set(),
             name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
             manufacturer="",
             model=f"{entry_id}",          # updated dynamically later
@@ -224,7 +225,11 @@ class SwitchPortBaseEntity(SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.last_update_success
+        """Return True only if we have data."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data is not None
+        )
 
     async def async_will_remove_from_hass(self) -> None:
         if hasattr(self, '_unsub_coordinator') and self._unsub_coordinator:
@@ -442,7 +447,8 @@ class SystemCpuSensor(SwitchPortBaseEntity):
     """CPU usage sensor."""
     _attr_name = "CPU Usage"
     _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_device_class = SensorDeviceClass.POWER_FACTOR
+    _attr_device_class = None
+    _attr_icon = "mdi:cpu-64-bit"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_unique_id_suffix = "system_cpu"
 
@@ -470,13 +476,17 @@ class CustomValueSensor(SwitchPortBaseEntity):
 
     @property
     def native_value(self):
+        """Return the custom OID value safely."""
+        if not self.coordinator.data:
+            return None
         return self.coordinator.data.system.get("oid_custom")
 
 class SystemMemorySensor(SwitchPortBaseEntity):
     """Memory usage sensor."""
     _attr_name = "Memory Usage"
     _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_device_class = SensorDeviceClass.POWER_FACTOR
+    _attr_device_class = None
+    _attr_icon = "mdi:memory"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_unique_id_suffix = "system_memory"
 
