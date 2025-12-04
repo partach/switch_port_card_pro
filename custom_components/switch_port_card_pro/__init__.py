@@ -39,6 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN].pop(entry.entry_id, None)
     
     host = entry.data[CONF_HOST]
+    update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
     ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
@@ -65,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans
+        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
 
     # Store coordinator
