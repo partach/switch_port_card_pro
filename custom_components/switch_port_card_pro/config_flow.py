@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+import homeassistant.helpers.selector as selector
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
