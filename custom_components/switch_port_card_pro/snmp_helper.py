@@ -74,16 +74,6 @@ async def async_snmp_get(
         _LOGGER.debug("SNMP GET exception on %s (oid=%s): %s", host, oid, exc)
         return None
 
-    finally:
-        if transport:
-            try:
-                await transport.close()
-            except (asyncio.CancelledError, ConnectionError, OSError):
-                # These are expected during shutdown or network issues
-                pass
-            except Exception as exc:  # Only log unexpected ones
-                _LOGGER.debug("Unexpected error closing SNMP transport: %s", exc)
-
 
 async def async_snmp_walk(
     hass,
@@ -142,13 +132,6 @@ async def async_snmp_walk(
 
     except Exception as exc:
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
-
-    finally:
-        if transport:
-            try:
-                await transport.close()
-            except Exception:
-                pass
 
     _LOGGER.debug("SNMP WALK %s -> %d entries", base_oid, len(results))
     return results
