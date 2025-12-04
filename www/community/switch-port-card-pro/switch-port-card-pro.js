@@ -17,6 +17,7 @@ class SwitchPortCardPro extends HTMLElement {
       entity: "sensor.mainswitch_total_bandwidth_mbps",
       total_ports: 8,
       sfp_start_port: 9,
+      custom_text: "Custom Value",
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -31,6 +32,7 @@ class SwitchPortCardPro extends HTMLElement {
       name: "Network Switch",
       total_ports: 8,
       sfp_start_port: 9,
+      custom_text: "Custom Value",
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -233,7 +235,7 @@ class SwitchPortCardPro extends HTMLElement {
         ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
         ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
         ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}
-        ${customVal?.state?`<div class="info-box firmware"><div class="info-value">${customVal.state}</div><div class="info-label">Custom</div></div>`:''}`;
+        ${customVal?.state?`<div class="info-box firmware"><div class="info-value">${customVal.state}</div><div class="info-label">${this._config.custom_text}</div></div>`:''}`;
     }
     else {
       this.shadowRoot.getElementById("system").innerHTML = ``;
@@ -401,6 +403,7 @@ class SwitchPortCardProEditor extends HTMLElement {
         <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
         <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
         <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps||100}"></div>
+        <div class="row"><label>Custom value text</label><input type="text" data-key="custom_text" value="${this._config.custom_text||'Custom'}"></div>
 
         <div class="checkbox-row">
           <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
@@ -414,13 +417,10 @@ class SwitchPortCardProEditor extends HTMLElement {
           <ha-checkbox data-key="show_live_traffic" ${this._config.show_live_traffic?'checked':''}></ha-checkbox>
           <span class="checkbox-label">Show Live Traffic (Down Up Mbps)</span>
         </div>
-          <!-- REQUEST 1: Show System Info Switch -->
           <div class="checkbox-row">
             <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
             <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
           </div>
-          
-          <!-- REQUEST 4: Show Port Section Names Switch -->
           <div class="checkbox-row">
             <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
             <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
