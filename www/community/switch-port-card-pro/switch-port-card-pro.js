@@ -1,4 +1,4 @@
-// switch-port-card-pro.js v2.1.0 — BULLETPROOF EDITION
+// switch-port-card-pro.js
 class SwitchPortCardPro extends HTMLElement {
   constructor() {
     super();
@@ -93,6 +93,7 @@ class SwitchPortCardPro extends HTMLElement {
       else if (id.includes("_system_uptime") || id.includes("uptime")) entities.uptime = e;
       else if (id.includes("_system_hostname") || id.includes("hostname")) entities.hostname = e;
       else if (id.includes("_total_poe") || id.includes("total_poe")) entities.total_poe = e;
+      else if (id.includes("_custom_value") || id.includes("custom_value")) entities.custom_value = e;
       else if (id.includes("_firmware") || id.includes("firmware")) entities.firmware = e;
       else if (id.includes("_port_") && id.includes("_status")) {
         const m = id.match(/_port_(\d+)_status/);
@@ -120,7 +121,7 @@ class SwitchPortCardPro extends HTMLElement {
           width: 8px;
           height: 8px;
           border-radius: 50%;
-          box-shadow: 0 0 2px rgba(0,0,0,0.9);
+          box-shadow: 0 0 1px rgba(0,0,0,0.6);
         }
         :host{display:block;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color);padding:7px;border-radius:var(--ha-card-border-radius,12px);font-family:var(--ha-font-family,Roboto)}
         .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.2em;font-weight:600}
@@ -173,7 +174,7 @@ class SwitchPortCardPro extends HTMLElement {
 
     // 20 distinct colors – consistent per VLAN
     const colors = [
-      "#e1a1b6ff", "#4ba79cff", "#a282d8ff", "#434f94ff", "#57a5e4ff",
+      "#dc5d87ff", "#7b6291ff", "#7f798aff", "#434f94ff", "#57a5e4ff",
       "#015881ff", "#00bcd4", "#009688", "#4caf50", "#8bc34a",
       "#ffc107", "#ff9800", "#ff5722", "#795548", "#607d8b",
       "#4fc3f7", "#ba68c8", "#ffb74d", "#aed581", "#ce93d8"
@@ -199,7 +200,7 @@ class SwitchPortCardPro extends HTMLElement {
       return;
     }
 
-    const bw=e.bandwidth, cpu=e.cpu, mem=e.memory, fw=e.firmware, up=e.uptime, host=e.hostname, poe=e.total_poe;
+    const bw=e.bandwidth, cpu=e.cpu, mem=e.memory, fw=e.firmware, up=e.uptime, host=e.hostname, poe=e.total_poe, customVal=e.custom_value;
 
     // Header + Bandwidth
     this.shadowRoot.getElementById("title").textContent = this._config.name || (host?.state?.trim()) || "Switch";
@@ -231,7 +232,8 @@ class SwitchPortCardPro extends HTMLElement {
         ${up?.state?`<div class="info-box"><div class="info-value">${this._formatTime(Number(up.state))}</div><div class="info-label">Uptime</div></div>`:''}
         ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
         ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
-        ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}`;
+        ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}
+        ${customVal?.state?`<div class="info-box"><div class="info-value">${customVal.state}</div><div class="info-label">${customVal.attributes?.friendly_name?.replace(/.*\s/, '') || 'Custom'}</div></div>`:''}`;
     }
     else {
       this.shadowRoot.getElementById("system").innerHTML = ``;
