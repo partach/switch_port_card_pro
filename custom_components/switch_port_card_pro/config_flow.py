@@ -91,7 +91,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_uptime": DEFAULT_SYSTEM_OIDS.get("uptime", ""),
                         "oid_poe_power": DEFAULT_SYSTEM_OIDS.get("poe_power", ""),
                         "oid_poe_status": DEFAULT_SYSTEM_OIDS.get("poe_status", ""),
-                        "oid_poe_total": DEFAULT_SYSTEM_OIDS.get("poe_total", ""),
+                        "oid_custom": DEFAULT_SYSTEM_OIDS.get("oid_custom", ""),
                     },
                 )
 
@@ -172,61 +172,131 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_rx",
                     default=current.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="RX OID for RX Counter",
+                        subtitle="Will be use in live RX calculation",
+                        )
+                ),
                 vol.Optional(
                     "oid_tx",
                     default=current.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="TX OID for TX Counter",
+                        subtitle="Will be use in live TX calculation",
+                        )
+                ),
                 vol.Optional(
                     "oid_status",
                     default=current.get("oid_status", DEFAULT_BASE_OIDS["status"]),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Port Status OID",
+                        subtitle="To determine port on/off",
+                        )
+                ),
                 vol.Optional(
                     "oid_speed",
                     default=current.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Port Speed OID",
+                        subtitle="To determine port speed (10M/100M/1G/...)",
+                        )
+                ),
                 vol.Optional(
                     "oid_name",
                     default=current.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Port Name OID",
+                        subtitle="To user given name of the port in switch config",
+                        )
+                ),
                 vol.Optional(
                     "oid_vlan",
                     default=current.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Port Vlan OID",
+                        subtitle="To determine Vlan ID of port",
+                        )
+                ),
 
                 # --- System OIDs ---
                 vol.Optional(
                     "oid_cpu",
                     default=current.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="CPU load percentage OID",
+                        subtitle="Must be return percentage value",
+                        )
+                ),
                 vol.Optional(
                     "oid_firmware",
                     default=current.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Firmware version string OID",
+                        subtitle="Retrieved text is used directly",
+                        )
+                ),
                 vol.Optional(
                     "oid_memory",
                     default=current.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Memory load percentage OID",
+                        subtitle="Must be return percentage value",
+                        )
+                ),
                 vol.Optional(
                     "oid_hostname",
                     default=current.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Switch name/type OID",
+                        subtitle="Retrieved text is used directly",
+                        )
+                ),
                 vol.Optional(
                     "oid_uptime",
                     default=current.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Up time OID",
+                        subtitle="Time in seconds is translated to D:H:M",
+                        )
+                ),
                 vol.Optional(
                     "oid_poe_power",
                     default=current.get("oid_poe_power", DEFAULT_SYSTEM_OIDS.get("poe_power", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="POE Port Power OID",
+                        subtitle="POE power for port is required",
+                        )
+                ),
                 vol.Optional(
                     "oid_poe_status",
                     default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
-                ): str,
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="POE Port Status OID",
+                        subtitle="POE status retrieval per port",
+                        )
+                ),
                 vol.Optional(
-                    "oid_poe_total",
-                    default=current.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
-                ): str,
+                    "oid_custom",
+                    default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
+                ): selector.TextSelector(selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        title="Custom OID",
+                        subtitle="Result of retrieving this OID will be directly displayed in the system part of the card",
+                        )
+                ),
                 vol.Optional(
                     "snmp_version",
                     default=current.get("snmp_version", "v2c"),
