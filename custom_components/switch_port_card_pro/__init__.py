@@ -53,7 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
         "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
         "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
-        "poe_status": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_status", "")),
+        "poe_status": entry.options.get("oid_poe_status", DEFAULT_BASE_OIDS.get("poe_status", "")),
     }
 
     system_oids = {
