@@ -189,7 +189,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "uptime": get("uptime"),
                 "firmware": get("firmware"),
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
-                "poe_total_raw": get("poe_total"),
+                "oid_custom": get("oid_custom"),
             }
 
             return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
@@ -459,7 +459,18 @@ class SystemCpuSensor(SwitchPortBaseEntity):
             return float(self.coordinator.data.system.get("cpu") or 0)
         except (ValueError, TypeError):
             return None
+            
+class CustomValueSensor(SwitchPortBaseEntity):
+    _attr_name = "Custom Value"
+    _attr_icon = "mdi:text-box-search"
 
+    def __init__(self, coordinator, entry_id):
+        super().__init__(coordinator, entry_id)
+        self._attr_unique_id = f"{entry_id}_custom_value"
+
+    @property
+    def native_value(self):
+        return self.coordinator.data.system.get("oid_custom")
 
 class SystemMemorySensor(SwitchPortBaseEntity):
     """Memory usage sensor."""
@@ -605,7 +616,7 @@ async def async_setup_entry(
         "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
         "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-        "poe_total": entry.options.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
+        "oid_custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
     }
 
     coordinator = SwitchPortCoordinator(
@@ -625,6 +636,7 @@ async def async_setup_entry(
         BandwidthSensor(coordinator, entry.entry_id),
         TotalPoESensor(coordinator, entry.entry_id),
         SystemCpuSensor(coordinator, entry.entry_id),
+        CustomValueSensor(coordinator, entry.entry_id),
         FirmwareSensor(coordinator, entry.entry_id),
         SystemMemorySensor(coordinator, entry.entry_id),
         SystemUptimeSensor(coordinator, entry.entry_id),
