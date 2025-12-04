@@ -93,7 +93,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     for p in self.ports
                 }            
             # === PORT WALKS ===
-            oids_to_walk = ["", "tx", "status", "speed", "name", "poe_power", "poe_status"]
+            oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status"]
             if self.include_vlans and self.base_oids.get("vlan"):
                 oids_to_walk.append("vlan")
 
