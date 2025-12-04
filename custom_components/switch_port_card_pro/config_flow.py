@@ -93,6 +93,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_poe_power": DEFAULT_SYSTEM_OIDS.get("poe_power", ""),
                         "oid_poe_status": DEFAULT_SYSTEM_OIDS.get("poe_status", ""),
                         "oid_custom": DEFAULT_SYSTEM_OIDS.get("oid_custom", ""),
+                        "update_interval": 20,
                     },
                 )
 
@@ -147,7 +148,8 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             
 
             try:
-                return self.async_create_entry(title="", data=user_input)
+                new = {**current, **user_input}
+                return self.async_create_entry(title="", data=new)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
                 return self.async_abort(reason="Error storing input")            
@@ -159,6 +161,10 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
         # --- Options Schema ---
         schema = vol.Schema(
             {
+                vol.Optional(
+                    "update_interval",
+                    default=current.get("update_interval", 20)
+                ): cv.positive_int,
                 vol.Optional(
                     CONF_PORTS,
                     default=current_ports,
@@ -302,9 +308,9 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                     "snmp_version",
                     default=current.get("snmp_version", "v2c"),
                 ): vol.In({"v2c": "v2c", "v1": "v1"}),
-                vol.Optional(
-                    CONF_SFP_PORTS_START, default=25 # for a 24 port switch
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=52)),
+ #               vol.Optional(
+ #                   CONF_SFP_PORTS_START, default=25 # for a 24 port switch
+ #               ): vol.All(vol.Coerce(int), vol.Range(min=1, max=52)),
             }
         )
 
