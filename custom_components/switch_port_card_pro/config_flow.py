@@ -86,7 +86,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_name": DEFAULT_BASE_OIDS.get("name", ""),
                         "oid_vlan": DEFAULT_BASE_OIDS.get("vlan", ""),
                         "oid_cpu": DEFAULT_SYSTEM_OIDS.get("cpu", ""),
-                        "firmware": DEFAULT_SYSTEM_OIDS.get("firmware", ""),
+                        "oid_firmware": DEFAULT_SYSTEM_OIDS.get("firmware", ""),
                         "oid_memory": DEFAULT_SYSTEM_OIDS.get("memory", ""),
                         "oid_hostname": DEFAULT_SYSTEM_OIDS.get("hostname", ""),
                         "oid_uptime": DEFAULT_SYSTEM_OIDS.get("uptime", ""),
@@ -127,7 +127,7 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        self.config_entry = config_entry # depricated in HA 2025.12
+        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
