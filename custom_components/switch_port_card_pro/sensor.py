@@ -44,7 +44,7 @@ from .snmp_helper import (
     discover_physical_ports,
 )
 _LOGGER = logging.getLogger(__name__)
-update_seconds = entry.options.get("update_interval", 20)
+
 
 
 @dataclass
@@ -558,6 +558,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the platform from config_entry."""
     host = entry.data[CONF_HOST]
+    update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
     snmp_version = entry.options.get("snmp_version", "v2c")
@@ -630,7 +631,7 @@ async def async_setup_entry(
     }
 
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans
+        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
 
     coordinator.device_name = entry.title
