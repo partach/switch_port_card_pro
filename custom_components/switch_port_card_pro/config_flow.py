@@ -230,8 +230,7 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_poe_status",
                     default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
-                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,itle="POE Port Status OID",subtitle="POE status retrieval per port",)
-                ),
+                ): str, #selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT,itle="POE Port Status OID",subtitle="POE status retrieval per port",)),
                 vol.Optional(
                     "oid_custom",
                     default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
