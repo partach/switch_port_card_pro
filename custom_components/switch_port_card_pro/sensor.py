@@ -386,24 +386,24 @@ class PortStatusSensor(SwitchPortBaseEntity):
                     # If previous value was "close" to wrap limit → wrap happened
                     if self._last_rx_bytes > 3_000_000_000:
                         delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
-                    else:
-                        # real counter reset (port down/up)
-                        delta_rx = 0
         
                 if delta_tx < 0:
                     if self._last_tx_bytes > 3_000_000_000:
                         delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
-                    else:
-                        delta_tx = 0
+
         
                 # --- COMPUTE LIVE BPS ---
                 rx_bps_live = int(delta_rx * 8 / delta_time)
                 tx_bps_live = int(delta_tx * 8 / delta_time)
         
                 # --- FINAL SAFETY CLAMP ---
-                if rx_bps_live < 0:
+                MAX_SAFE_BPS = 20_000_000_000
+                if rx_bps_live < 0 or rx_bps_live > MAX_SAFE_BPS:
+                    _LOGGER.warning("RX counter reset or spurious data detected. Dropping rate data.")
                     rx_bps_live = 0
-                if tx_bps_live < 0:
+                    
+                if tx_bps_live < 0 or tx_bps_live > MAX_SAFE_BPS:
+                    _LOGGER.warning("TX counter reset or spurious data detected. Dropping rate data.")
                     tx_bps_live = 0
 
         # Store for next poll
