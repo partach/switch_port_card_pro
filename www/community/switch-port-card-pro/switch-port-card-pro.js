@@ -129,7 +129,7 @@ class SwitchPortCardPro extends HTMLElement {
         .info-box{background:rgba(var(--rgb-card-background-color,255,255,255),0.08);backdrop-filter:blur(8px);padding:7px 9px;border-radius:10px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.12)}
         .info-value{font-size:1.05em;font-weight:bold;line-height:1.05;margin:0}
         .info-label{font-size:0.8em;opacity:0.8;color:var(--secondary-text-color);line-height:1.2;margin-top:1px}
-        .info-box.firmware .info-value{font-size:0.52em!important;font-weight:normal!important;line-height:1.3}
+        .info-box.firmware .info-value{font-size:0.6em!important;font-weight:normal!important;line-height:1.3}
         .gauge{height:18px;background:var(--light-primary-color);border-radius:12px;overflow:hidden;margin:16px 0;display:none;position:relative}
         .gauge-fill{height:100%;background:linear-gradient(90deg,var(--label-badge-green,#4caf50),var(--label-badge-yellow,#ff9800) 50%,var(--label-badge-red,#f44336));background-size:300% 100%;width:100%;transition:background-position .8s ease}
         .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:8px 0 4px;text-align:center;width:100%}
@@ -233,7 +233,7 @@ class SwitchPortCardPro extends HTMLElement {
         ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
         ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
         ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}
-        ${customVal?.state?`<div class="info-box"><div class="info-value">${customVal.state}</div><div class="info-label">${customVal.attributes?.friendly_name?.replace(/.*\s/, '') || 'Custom'}</div></div>`:''}`;
+        ${customVal?.state?`<div class="info-box firmware"><div class="info-value">${customVal.state}</div><div class="info-label">Custom</div></div>`:''}`;
     }
     else {
       this.shadowRoot.getElementById("system").innerHTML = ``;
