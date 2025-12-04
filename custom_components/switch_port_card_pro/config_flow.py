@@ -148,8 +148,9 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             
 
             try:
-                new = {**current, **user_input}
-                return self.async_create_entry(title="", data=new)
+             #   new = {**current, **user_input}
+             #   return self.async_create_entry(title="", data=new)
+                return self.async_create_entry(title="", data=user_input)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
                 return self.async_abort(reason="Error storing input")            
