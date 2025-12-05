@@ -1,5 +1,10 @@
 # Changelog
-
+## [0.5.5] - Official Release
+- Added custom OID (use any oid value you want in your card)
+- Configurable name for custom OID in card
+- Updated configuration possibilities of integration (and card)
+- Configurable update time (20s per default)
+  
 ## [0.5.4] - Extensions
 - VLAN indication per port visual in the card
 - Fully auto port detection (via SNMP)
