@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
     ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
-    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
+    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
 
     base_oids = {
