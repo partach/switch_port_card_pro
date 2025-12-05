@@ -300,6 +300,7 @@ class BandwidthSensor(SwitchPortBaseEntity):
     _attr_name = "Total Bandwidth"
     _attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
     _attr_device_class = SensorDeviceClass.DATA_RATE
+    _attr_icon = "mdi:speedometer"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_unique_id_suffix = "total_bandwidth_mbps"
 
@@ -560,7 +561,7 @@ async def async_setup_entry(
     host = entry.data[CONF_HOST]
     update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
-    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, False)
+    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
 
