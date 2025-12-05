@@ -34,8 +34,11 @@ The integration uses baseoids that you can configure on the fly and has default 
 - No entities have to be set manually for SNMP!
 - Supports multiple hubs (switch instances). You can monitor your whole switch farm from one dashboard
 - Indication of `10M`, `100M`, `1G`, `2.5G`, `5G` `10G`, `DOWN`
-- Indication of port name, vlan id, Rx speed, Tx speed, POE power, POE budget, POE status 
-- Cpu load and memory load indication as well as firmware version
+- Automatic detection of number of available support (if standard oid is honored by network Switch)
+- Visible vlan tagging (ports show to which VLAN they belong)
+- Indication of port name, vlan id, Rx speed, Tx speed, POE power, POE status,  
+- Cpu load and memory load indication as well as firmware version.
+- Customer OID possibility (monitor your specific need)
 - Compact mode (for smaller dashboards)
 - Hover Tooltip per port showing status details per port
 - Integration (and card) configuration screen
@@ -73,7 +76,13 @@ The card has a configuration screen which can be used in stead...
   device: sensor.switch_192_168_1_1
   name: XGS1935
   compact_mode: false
+  show_total_bandwidth: false
   show_live_traffic: true
+  total_ports: 28
+  sfp_start_port: 25
+  show_system_info: true
+  show_port_type_labels: false
+  custom_text: Temperature MAC
 ```
 
 ## verified oids for zyxel 1935
