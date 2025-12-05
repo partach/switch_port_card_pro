@@ -557,13 +557,13 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the platform from config_entry."""
+    """Set up the platform from config_entry. vlans override always to true"""
     host = entry.data[CONF_HOST]
     update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
-    include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
+    include_vlans = True
     snmp_version = entry.options.get("snmp_version", "v2c")
-    mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)  # defaults to v2c
+    mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
     detected = await discover_physical_ports(hass, host, community, mp_model)
