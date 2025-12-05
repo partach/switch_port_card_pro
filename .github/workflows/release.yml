@@ -1,28 +1,48 @@
 name: Release
+
 on:
   release:
     types: [published]
+
 jobs:
   release_zip_file:
     name: Prepare release asset
     runs-on: ubuntu-latest
-    permissions:  # ← ADD THIS BLOCK
-      contents: write  # Required for uploading assets to releases
+    permissions:
+      contents: write
+
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-      - name: Get version
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from manifest.json
         id: version
-        uses: home-assistant/actions/helpers/version@master
-      - name: Create zip
         run: |
-          cd custom_components/switch_port_card_pro
-          zip switch_port_card_pro.zip -r ./
-      - name: Upload zip to release
+          VERSION=$(jq -r .version custom_components/switch_port_card_pro/manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release zip with correct structure
+        run: |
+          mkdir -p release/switch_port_card_pro/custom_components/switch_port_card_pro
+          mkdir -p release/switch_port_card_pro/www/community/switch-port-card-pro
+
+          # Copy integration files
+          cp -r custom_components/switch_port_card_pro/* \
+                release/switch_port_card_pro/custom_components/switch_port_card_pro/
+
+          # Copy card
+          cp www/community/switch-port-card-pro/switch-port-card-pro.js \
+                release/switch_port_card_pro/www/community/switch-port-card-pro/
+
+          # Create zip from the root folder
+          cd release
+          zip -r "../switch_port_card_pro_v${{ steps.version.outputs.version }}.zip" switch_port_card_pro
+
+      - name: Upload release asset
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./custom_components/switch_port_card_pro/switch_port_card_pro.zip
-          asset_name: switch_port_card_pro.zip
-          tag: ${{ github.ref }}
+          file: switch_port_card_pro_v${{ steps.version.outputs.version }}.zip
+          asset_name: switch_port_card_pro_v${{ steps.version.outputs.version }}.zip
+          tag: ${{ github.ref_name }}
           overwrite: true
