@@ -17,14 +17,16 @@ from pysnmp.hlapi.v3arch.asyncio import (
 
 from .const import SNMP_VERSION_TO_MP_MODEL
 from pysnmp.smi import builder
+from pysnmp.proto import rfc1902
+# Pre-load empty to short-circuit future loads?
+try
+  builder.MibBuilder().loadModules()
+except AttributeError:   
+  pass
 
-# Create MIB builder with NO FILESYSTEM (needed for async non blocking)
-MIB_BUILDER = builder.MibBuilder()
-# disable all default mib loading
-MIB_BUILDER.setMibSources()  
-
+# Create engine with disabled MIB
 _SNMP_ENGINE = SnmpEngine()
-_SNMP_ENGINE.msgAndPduDsp.mibInstrumController.mibBuilder = MIB_BUILDER
+
 asyncio.get_event_loop().set_debug(False)
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,7 +51,6 @@ async def async_snmp_get(
         transport.timeout = timeout
         transport.retries = retries
         obj_identity = ObjectIdentity(oid)
-  #      obj_identity.resolveWithMib(False)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
@@ -105,8 +106,6 @@ async def async_snmp_walk(
         # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
         # But in v3arch.asyncio it returns an async iterator yielding these tuples
         obj_identity = ObjectIdentity(base_oid)
-   #     obj_identity.resolveWithMib(False)
-
         iterator = walk_cmd(
             _SNMP_ENGINE,
             CommunityData(community, mpModel=mp_model),
