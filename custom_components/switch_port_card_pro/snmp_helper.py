@@ -16,14 +16,18 @@ from pysnmp.hlapi.v3arch.asyncio import (
 )
 
 from .const import SNMP_VERSION_TO_MP_MODEL
+from pysnmp.smi import builder
 
-_LOGGER = logging.getLogger(__name__)
+# Create MIB builder with NO FILESYSTEM (needed for async non blocking)
+MIB_BUILDER = builder.MibBuilder()
+# disable all default mib loading
+MIB_BUILDER.setMibSources()  
+
 _SNMP_ENGINE = SnmpEngine()
+_SNMP_ENGINE.msgAndPduDsp.mibInstrumController.mibBuilder = MIB_BUILDER
 asyncio.get_event_loop().set_debug(False)
 
-# KILL MIB LOADING — THIS IS THE HOLY GRAIL
-# _SNMP_ENGINE.get_mib_builder().set_mib_sources()  # ← NO MORE BLOCKING I/O EVER
-# does not work at all!!
+_LOGGER = logging.getLogger(__name__)
 
 # 0 = SNMPv1, 1 = SNMPv2c
 MpModel = Literal[0, 1]
