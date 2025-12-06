@@ -305,8 +305,8 @@ class SwitchPortCardPro extends HTMLElement {
         else if(speedMbps>=10){speedClass="on-10m";speedText="10M"}
         else speedText=`${speedMbps}M`;
 
-        if (rxBps > txBps*1.8) direction="Down";
-        else if (txBps > rxBps*1.8) direction="Up";
+        if (rxBps > txBps*1.8) direction="\u2193";
+        else if (txBps > rxBps*1.8) direction="\u2191";
       }
 
       const statusText = this._config.show_live_traffic && (rxBps>100000 || txBps>100000)
