@@ -19,7 +19,7 @@ from .const import SNMP_VERSION_TO_MP_MODEL
 from pysnmp.smi import builder
 from pysnmp.proto import rfc1902
 # Pre-load empty to short-circuit future loads?
-try
+try:
   builder.MibBuilder().loadModules()
 except AttributeError:   
   pass
