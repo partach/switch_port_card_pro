@@ -8,6 +8,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
+import asyncio
 
 from .const import (
     DOMAIN,
@@ -76,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # First refresh
     try:
       await coordinator.async_config_entry_first_refresh()
-    except:
+    except asyncio.CancelledError:
         all_is_ok = False
         _LOGGER.debug("refresh cancelled")
 
@@ -85,11 +86,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward to platforms
     try:
       await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except:
+    except asyncio.CancelledError:
         all_is_ok = False
-        _LOGGER.debug("refresh cancelled")
-
-
+        _LOGGER.debug("Entry setups cancelled")
+        
     return all_is_ok
 
 
