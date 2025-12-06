@@ -81,6 +81,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.include_vlans = include_vlans
         self.mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
         self.port_mapping = {}
+        self.update_seconds = update_seconds
+        self._last_total_bytes = 0
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
@@ -168,8 +170,28 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 total_tx += tx.get(if_index, 0)
                 total_poe_mw += poe_power.get(if_index, 0)
 
-         #   bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024 * UPDATE_INTERVAL.total_seconds()), 2)
-            bandwidth_mbps = round(((total_rx + total_tx) * 8) / (1024 * 1024), 2)
+            # compute current totals (these are lifetime counters) in bytes
+            current_total_bytes = total_rx + total_tx
+            # compute delta from last poll
+            delta_total = current_total_bytes - getattr(self, "_last_total_bytes", 0)
+            # handle negative (counter reset or wrap) if needed
+            if delta_total < 0:
+                # Heuristic: assume 32-bit wrap if last_total was large
+                MAX32 = 4294967296
+                if getattr(self, "_last_total_bytes", 0) > 3_000_000_000:
+                    delta_total = (MAX32 - self._last_total_bytes) + current_total_bytes
+                else:
+                    # real reset, treat as zero
+                    delta_total = 0
+            # prefer using configured stable interval if available
+            delta_time = getattr(self, "update_seconds", 20)
+            if delta_time <= 0:
+                delta_time = 20
+            # Mbps: megabits per second
+            bandwidth_mbps = round((delta_total * 8) / (1024 * 1024) / delta_time, 2)
+
+            # store for next run
+            self._last_total_bytes = current_total_bytes
             # === SYSTEM OIDs ===
             raw_system = await async_snmp_bulk(
                 self.hass,
@@ -373,7 +395,9 @@ class PortStatusSensor(SwitchPortBaseEntity):
             and self._last_update is not None
             and now > self._last_update):
 
-            delta_time = now - self._last_update
+            actual_delta = now - self._last_update
+            delta_time = actual_delta if actual_delta < (self.coordinator.update_seconds * 1.5) else self.coordinator.update_seconds
+
             if delta_time > 0:
                 # --- RAW DELTAS ---
                 delta_rx = raw_rx_bytes - self._last_rx_bytes
@@ -559,7 +583,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the platform from config_entry. vlans override always to true"""
     host = entry.data[CONF_HOST]
-    update_seconds = entry.options.get("update_interval", 20)
+    update_seconds = max(3, int(entry.options.get("update_interval", 20)))
     community = entry.data[CONF_COMMUNITY]
     include_vlans = True
     snmp_version = entry.options.get("snmp_version", "v2c")
@@ -567,7 +591,7 @@ async def async_setup_entry(
 
     # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
     detected = await discover_physical_ports(hass, host, community, mp_model)
-
+    
     if detected:
         # Always work with clean, sorted integers
         all_ports = sorted(int(p) for p in detected.keys())
@@ -634,14 +658,14 @@ async def async_setup_entry(
     coordinator = SwitchPortCoordinator(
         hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
-
+   
     coordinator.device_name = entry.title
     coordinator.port_mapping = detected or {}
     # Store coordinator for card and other platforms to access
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
+    coordinator.update_interval = timedelta(seconds=update_seconds)
     # Force first refresh to populate data immediately
-  #  await coordinator.async_config_entry_first_refresh()  # see if this fixes the no entities
+    await coordinator.async_config_entry_first_refresh()
 
     # Create entities
     entities = [
