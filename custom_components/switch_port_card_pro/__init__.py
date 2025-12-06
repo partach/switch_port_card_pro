@@ -36,6 +36,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
 
+    all_is_ok = True
     hass.data[DOMAIN].pop(entry.entry_id, None)
     
     host = entry.data[CONF_HOST]
@@ -75,22 +76,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # First refresh
     try:
       await coordinator.async_config_entry_first_refresh()
-    except asyncio.CancelledError:
+    except:
+        all_is_ok = False
         _LOGGER.debug("refresh cancelled")
-    finally:
-        pass
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     # Forward to platforms
     try:
       await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except asyncio.CancelledError:
+    except:
+        all_is_ok = False
         _LOGGER.debug("refresh cancelled")
-    finally:
-        pass
 
-    return True
+
+    return all_is_ok
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
