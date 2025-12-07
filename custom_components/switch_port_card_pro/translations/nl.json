@@ -32,7 +32,8 @@
           "oid_uptime": "Uptime OID (seconden → omgerekend naar D:U:M)",
           "oid_poe_power": "PoE-vermogen OID (per poort in mW)",
           "oid_poe_status": "PoE-status OID (per poort)",
-          "oid_custom": "Aangepaste OID (wordt getoond in systeeminfo)",
+          "oid_custom": "Vrije OID (wordt getoond in systeeminfo)",
+          "oid_port_custom": "Poort vrije OID (per poort)",
           "snmp_version": "SNMP-versie"
         }
       }
