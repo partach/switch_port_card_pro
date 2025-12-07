@@ -184,7 +184,7 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_tx",
                     default=current.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
-                ): selector.TextSelector(selector.TextSelectorConfig(ype=selector.TextSelectorType.TEXT,title="TX OID for TX Counter",subtitle="Will be use in live TX calculation",)),
+                ): selector.TextSelector(selector.TextSelectorConfig(title="TX OID for TX Counter",subtitle="Will be use in live TX calculation",)),
                 vol.Optional(
                     "oid_status",
                     default=current.get("oid_status", DEFAULT_BASE_OIDS["status"]),
@@ -230,7 +230,7 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_poe_status",
                     default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
-                ): selector.TextSelector(selector.TextSelectorConfig(itle="POE Port Status OID",subtitle="POE status retrieval per port",)),
+                ): selector.TextSelector(selector.TextSelectorConfig(title="POE Port Status OID",subtitle="POE status retrieval per port",)),
                 vol.Optional(
                     "oid_custom",
                     default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
