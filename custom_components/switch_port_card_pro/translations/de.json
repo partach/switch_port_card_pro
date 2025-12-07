@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Switch Port Card Pro einrichten",
+        "description": "Konfiguriere deinen SNMP-fähigen Netzwerk-Switch",
+        "data": {
+          "host": "IP-Adresse oder Hostname des Switches",
+          "community": "SNMP-Community-String"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "options": {
+        "title": "Switch Port Card Pro konfigurieren",
+        "description": "OIDs und Port-Einstellungen für deinen Switch anpassen",
+        "data": {
+          "update_interval": "Aktualisierungsintervall (Sekunden)",
+          "ports": "Zu überwachende Ports",
+          "oid_rx": "RX-Zähler OID (für Live-RX-Berechnung)",
+          "oid_tx": "TX-Zähler OID (für Live-TX-Berechnung)",
+          "oid_status": "Port-Status OID (bestimmt Ein/Aus)",
+          "oid_speed": "Port-Geschwindigkeit OID (10M/100M/1G/10G Erkennung)",
+          "oid_name": "Port-Name OID (benutzerdefinierte Namen)",
+          "oid_vlan": "VLAN-ID OID (Port-VLAN)",
+          "oid_cpu": "CPU-Last OID (muss Prozentwert liefern)",
+          "oid_firmware": "Firmware-Version OID (Text)",
+          "oid_memory": "Speicherauslastung OID (muss Prozentwert liefern)",
+          "oid_hostname": "Hostname/Model OID (Geräteidentifikation)",
+          "oid_uptime": "Laufzeit OID (Sekunden → umgerechnet in T:Std:Min)",
+          "oid_poe_power": "PoE-Leistung OID (pro Port in mW)",
+          "oid_poe_status": "PoE-Status OID (pro Port)",
+          "oid_custom": "Benutzerdefinierte OID (wird im System-Info-Bereich angezeigt)",
+          "snmp_version": "SNMP-Version"
+        }
+      }
+    }
+  }
+}
