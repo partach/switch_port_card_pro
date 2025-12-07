@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Switch Port Card Pro Instellen",
+        "description": "Configureer je SNMP-switch",
+        "data": {
+          "host": "IP-adres of hostname van de switch",
+          "community": "SNMP Community-string"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "options": {
+        "title": "Switch Port Card Pro Instellingen",
+        "description": "Pas OIDs en poortinstellingen aan voor jouw switch",
+        "data": {
+          "update_interval": "Update-interval (seconden)",
+          "ports": "Te monitoren poorten",
+          "oid_rx": "RX-teller OID (voor live RX-berekening)",
+          "oid_tx": "TX-teller OID (voor live TX-berekening)",
+          "oid_status": "Poortstatus OID (bepaalt aan/uit)",
+          "oid_speed": "Poortsnelheid OID (10M/100M/1G/10G detectie)",
+          "oid_name": "Poortnaam OID (door gebruiker ingestelde namen)",
+          "oid_vlan": "VLAN ID OID (poort-VLAN)",
+          "oid_cpu": "CPU-gebruik OID (moet percentage teruggeven)",
+          "oid_firmware": "Firmwareversie OID (tekst)",
+          "oid_memory": "Geheugengebruik OID (moet percentage teruggeven)",
+          "oid_hostname": "Hostname/Model OID (apparaatidentificatie)",
+          "oid_uptime": "Uptime OID (seconden → omgerekend naar D:U:M)",
+          "oid_poe_power": "PoE-vermogen OID (per poort in mW)",
+          "oid_poe_status": "PoE-status OID (per poort)",
+          "oid_custom": "Aangepaste OID (wordt getoond in systeeminfo)",
+          "snmp_version": "SNMP-versie"
+        }
+      }
+    }
+  }
+}
