@@ -17,6 +17,8 @@ class SwitchPortCardPro extends HTMLElement {
       entity: "sensor.mainswitch_total_bandwidth_mbps",
       total_ports: 8,
       sfp_start_port: 9,
+      custom_text: "Custom Value",
+      custom_port_text: "Custom Port Val.",
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -31,6 +33,8 @@ class SwitchPortCardPro extends HTMLElement {
       name: "Network Switch",
       total_ports: 8,
       sfp_start_port: 9,
+      custom_text: "Custom Value",
+      custom_port_text: "Custom Port Val.",
       show_total_bandwidth: true,
       max_bandwidth_gbps: 100,
       compact_mode: false,
@@ -208,7 +212,7 @@ class SwitchPortCardPro extends HTMLElement {
     if (bw?.state) {
       let val = Number(bw.state);
       const u = (bw.attributes?.unit_of_measurement||"").toLowerCase();
-      
+
       // SNMP integration bug: labels as Mbit/s but actually reports Kbps
       // Detection: if value > 1,000 and unit says "mbit", it's likely Kbps not Mbps
       if (u.includes("mbit") && val > 1000) {
@@ -225,15 +229,15 @@ class SwitchPortCardPro extends HTMLElement {
     this.shadowRoot.getElementById("bandwidth").textContent = bwText;
 
     // System boxes
-    if (this._config.show_system_info === true) { 
+    if (this._config.show_system_info === true) {
       this.shadowRoot.getElementById("system").innerHTML = `
         ${cpu?.state?`<div class="info-box"><div class="info-value">${Math.round(cpu.state)}%</div><div class="info-label">CPU</div></div>`:''}
         ${mem?.state?`<div class="info-box"><div class="info-value">${Math.round(mem.state)}%</div><div class="info-label">Memory</div></div>`:''}
         ${up?.state?`<div class="info-box"><div class="info-value">${this._formatTime(Number(up.state))}</div><div class="info-label">Uptime</div></div>`:''}
         ${host?.state?`<div class="info-box"><div class="info-value">${host.state}</div><div class="info-label">Host</div></div>`:''}
         ${poe?.state!=null && poe.state!=="unknown"?`<div class="info-box"><div class="info-value">${poe.state} W</div><div class="info-label">PoE Total</div></div>`:''}
-        ${fw?.state?`<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>`:''}
-        ${customVal?.state?`<div class="info-box firmware"><div class="info-value">${customVal.state}</div><div class="info-label">Custom</div></div>`:''}`;
+        ${fw?.state ? `<div class="info-box firmware"><div class="info-value">${fw.state}</div><div class="info-label">Firmware</div></div>` : ''}
+        ${customVal?.state?`<div class="info-box firmware"><div class="info-value">${customVal.state}</div><div class="info-label">${this._config.custom_text}</div></div>`:''}`;
     }
     else {
       this.shadowRoot.getElementById("system").innerHTML = ``;
@@ -244,7 +248,7 @@ class SwitchPortCardPro extends HTMLElement {
       gauge.style.display="block";
       let val=Number(bw.state);
       const u=(bw.attributes?.unit_of_measurement||"").toLowerCase();
-      
+
       // Same detection as header - likely Kbps mislabeled as Mbit/s
       if (u.includes("mbit") && val > 1000) {
         val = val / 1000;
@@ -255,7 +259,7 @@ class SwitchPortCardPro extends HTMLElement {
       } else if (u.includes("gbit")) {
         val = val * 1e3;
       }
-      
+
       const pct=Math.min((val/((this._config.max_bandwidth_gbps||100)*1000))*100,100);
       fill.style.width = `${pct}%`;
       // Gradient position: 0% = green, 50% = yellow, 100% = red
@@ -304,8 +308,8 @@ class SwitchPortCardPro extends HTMLElement {
         else if(speedMbps>=10){speedClass="on-10m";speedText="10M"}
         else speedText=`${speedMbps}M`;
 
-        if (rxBps > txBps*1.8) direction="Down";
-        else if (txBps > rxBps*1.8) direction="Up";
+        if (rxBps > txBps*1.8) direction="\u2193";
+        else if (txBps > rxBps*1.8) direction="\u2191";
       }
 
       const statusText = this._config.show_live_traffic && (rxBps>100000 || txBps>100000)
@@ -337,7 +341,7 @@ class SwitchPortCardPro extends HTMLElement {
         (vlan ? `\nVLAN: ${vlan}` : "") +
         `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
         `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s` +
-        (port_custom ? `\nCustom: ${port_custom}` : "");
+        (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "");
       div.innerHTML = `
         <div class="vlan-dot" style="background:${this._vlanColor(vlan)}"></div>
         <div class="port-num">${i}</div>
@@ -402,7 +406,9 @@ class SwitchPortCardProEditor extends HTMLElement {
         </div>
         <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
         <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
-        <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps||100}"></div>
+        <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps || 100}"></div>
+        <div class="row"><label>Custom value text</label><input type="text" data-key="custom_text" value="${this._config.custom_text||'Custom'}"></div>
+        <div class="row"><label>Custom port val. text</label><input type="text" data-key="custom_port_text" value="${this._config.custom_port_text||'Custom Port'}"></div>
 
         <div class="checkbox-row">
           <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
@@ -421,8 +427,7 @@ class SwitchPortCardProEditor extends HTMLElement {
             <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
             <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
           </div>
-          
-          <!-- REQUEST 4: Show Port Section Names Switch -->
+
           <div class="checkbox-row">
             <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
             <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
