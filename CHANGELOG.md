@@ -1,4 +1,9 @@
 # Changelog
+## [0.6.0] - Added language file
+- en.json now added. More will be added later
+- Integration Configuration screen much more descriptive
+- Small improvement on card visual
+
 ## [0.5.5] - Official Release
 - Added custom OID (use any oid value you want in your card)
 - Configurable name for custom OID in card
