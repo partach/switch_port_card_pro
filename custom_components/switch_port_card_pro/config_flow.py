@@ -92,7 +92,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "oid_uptime": DEFAULT_SYSTEM_OIDS.get("uptime", ""),
                         "oid_poe_power": DEFAULT_SYSTEM_OIDS.get("poe_power", ""),
                         "oid_poe_status": DEFAULT_SYSTEM_OIDS.get("poe_status", ""),
-                        "oid_custom": DEFAULT_SYSTEM_OIDS.get("oid_custom", ""),
+                        "oid_custom": DEFAULT_SYSTEM_OIDS.get("custom", ""),
                         "oid_port_custom": DEFAULT_SYSTEM_OIDS.get("port_custom", ""),
                         "update_interval": 20,
                     },
@@ -234,7 +234,7 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     "oid_custom",
-                    default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
+                    default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
                 ): str,
                 vol.Optional(
                     "oid_port_custom",
