@@ -34,7 +34,7 @@ The integration uses baseoids that you can configure on the fly and has default 
 - No entities have to be set manually for SNMP!
 - Supports multiple hubs (switch instances). You can monitor your whole switch farm from one dashboard
 - Indication of `10M`, `100M`, `1G`, `2.5G`, `5G` `10G`, `DOWN`
-- Automatic detection of number of available support (if standard oid is honored by network Switch)
+- Automatic detection of number of available ports (if standard oid is honored by network Switch)
 - Visible vlan tagging (ports show to which VLAN they belong)
 - Indication of port name, vlan id, Rx speed, Tx speed, POE power, POE status,  
 - Cpu load and memory load indication as well as firmware version.
