@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Switch Port Card Pro Setup",
+        "description": "Configure your SNMP-enabled network switch",
+        "data": {
+          "host": "Switch IP Address or Hostname",
+          "community": "SNMP Community String"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "options": {
+        "title": "Configure Switch Port Card Pro",
+        "description": "Customize OIDs and port settings for your switch",
+        "data": {
+          "update_interval": "Update Interval (seconds)",
+          "ports": "Ports to Monitor",
+          "oid_rx": "RX Counter OID (for live RX calculation)",
+          "oid_tx": "TX Counter OID (for live TX calculation)",
+          "oid_status": "Port Status OID (determines on/off state)",
+          "oid_speed": "Port Speed OID (10M/100M/1G/etc. detection)",
+          "oid_name": "Port Name OID (user-assigned port names)",
+          "oid_vlan": "VLAN ID OID (port VLAN assignment)",
+          "oid_cpu": "CPU Load OID (percentage)",
+          "oid_firmware": "Firmware Version OID (text string)",
+          "oid_memory": "Memory Usage OID (percentage)",
+          "oid_hostname": "Hostname/Model OID (device identification)",
+          "oid_uptime": "Uptime OID (seconds, converted to D:H:M)",
+          "oid_poe_power": "PoE Power OID (per-port power in mW)",
+          "oid_poe_status": "PoE Status OID (per-port PoE state)",
+          "oid_custom": "Custom OID (displayed in system info box)",
+          "snmp_version": "SNMP protocol Version"
+        }
+      }
+    }
+  }
+}
