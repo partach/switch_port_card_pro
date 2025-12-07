@@ -95,7 +95,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     for p in self.ports
                 }            
             # === PORT WALKS ===
-            oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status"]
+            oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status","port_custom"]
             if self.include_vlans and self.base_oids.get("vlan"):
                 oids_to_walk.append("vlan")
 
@@ -134,6 +134,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             vlan = parse(walk_map.get("vlan", {}))
             poe_power = parse(walk_map.get("poe_power", {}))
             poe_status = parse(walk_map.get("poe_status", {}))
+            port_custom = parse(walk_map.get("port_custom", {}))
 
             ports_data: dict[str, dict[str, Any]] = {}
             total_rx = total_tx = total_poe_mw = 0
@@ -151,6 +152,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     "vlan": None,
                     "poe_power": 0,
                     "poe_status": 0,
+                    "port_custom": 0,
                 }
 
                 # Use the real if_index for all lookups
@@ -164,6 +166,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                         "vlan": vlan.get(if_index),
                         "poe_power": poe_power.get(if_index, 0),
                         "poe_status": poe_status.get(if_index, 0),
+                        "port_custom": port_custom.get(if_index, 0),
                     })
 
                 total_rx += rx.get(if_index, 0)
@@ -212,7 +215,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "uptime": get("uptime"),
                 "firmware": get("firmware"),
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
-                "oid_custom": get("oid_custom"),
+                "custom": get("custom"),
             }
 
             return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
@@ -504,7 +507,7 @@ class CustomValueSensor(SwitchPortBaseEntity):
         """Return the custom OID value safely."""
         if not self.coordinator.data:
             return None
-        return self.coordinator.data.system.get("oid_custom")
+        return self.coordinator.data.system.get("custom")
 
 class SystemMemorySensor(SwitchPortBaseEntity):
     """Memory usage sensor."""
@@ -643,6 +646,7 @@ async def async_setup_entry(
         "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
         "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
         "poe_status": entry.options.get("oid_poe_status", DEFAULT_BASE_OIDS.get("poe_status", "")),
+        "port_custom": entry.options.get("oid_port_custom", DEFAULT_BASE_OIDS.get("port_custom", "")),
     }
 
     # System OIDs must be mapped to their generic keys for the coordinator logic
@@ -652,7 +656,7 @@ async def async_setup_entry(
         "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
         "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-        "oid_custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("oid_custom", "")),
+        "custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
     }
 
     coordinator = SwitchPortCoordinator(
