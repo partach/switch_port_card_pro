@@ -458,6 +458,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
             "is_sfp": bool(port_info.get("is_sfp", False)),
             "is_copper": bool(port_info.get("is_copper", True)),
             "interface": port_info.get("if_descr"),  # e.g. "eth5"
+            "custom": p.get("port_custom"),
         }
         if self.coordinator.include_vlans and p.get("vlan") is not None:
             attrs["vlan_id"] = p["vlan"]
