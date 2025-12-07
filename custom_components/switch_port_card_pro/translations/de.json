@@ -33,6 +33,7 @@
           "oid_poe_power": "PoE-Leistung OID (pro Port in mW)",
           "oid_poe_status": "PoE-Status OID (pro Port)",
           "oid_custom": "Benutzerdefinierte OID (wird im System-Info-Bereich angezeigt)",
+          "oid_port_custom": "Port Benutzerdefinierte OID (pro Port)",
           "snmp_version": "SNMP-Version"
         }
       }
