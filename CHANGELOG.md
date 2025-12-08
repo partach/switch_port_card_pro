@@ -1,4 +1,10 @@
 # Changelog
+
+## [0.7.0] - Full hacs compliant
+- fully hacs compliant.
+- Making port visuals in card configurable for end user
+- Other smaller optimizations
+
 ## [0.6.0] - Added language file
 - en.json now added. More will be added later
 - Integration Configuration screen much more descriptive
