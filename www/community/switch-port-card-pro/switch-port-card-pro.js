@@ -136,7 +136,7 @@ class SwitchPortCardPro extends HTMLElement {
         .port:hover{transform:scale(1.06);z-index:10}
         /* Row-1 group */
         .row1{display:flex;align-items:center;gap:6px;justify-content:center;width:100%;font-size:0.95em;line-height:1}
-        .vlan-dot {width:8px;height:8px;border-radius:50%;box-shadow:0 0 1px rgba(0,0,0,0.6);display:inline-block;transform:translateY(-1px)}
+        .vlan-dot {width:5px;height:5px;border-radius:50%;box-shadow:0 0 1px rgba(0,0,0,0.6);display:inline-block;transform:translateY(-1px)}
         .port-num{font-size:0.95em;font-weight:700}
         .port-direction{font-size:1.05em;margin-left:4px}
         .port-status{font-size:0.9em;margin-top:4px}
