@@ -19,8 +19,8 @@
         "data": {
           "update_interval": "Update Interval (seconds)",
           "ports": "Ports to Monitor",
-          "oid_rx": "RX Counter OID (for live RX calculation)",
-          "oid_tx": "TX Counter OID (for live TX calculation)",
+          "oid_rx": "Life-time RX Counter OID (for live RX calculation)",
+          "oid_tx": "Life-time TX Counter OID (for live TX calculation)",
           "oid_status": "Port Status OID (determines on/off state)",
           "oid_speed": "Port Speed OID (10M/100M/1G/etc. detection)",
           "oid_name": "Port Name OID (user-assigned port names)",
