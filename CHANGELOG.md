@@ -1,5 +1,5 @@
 # Changelog
-## [0.7.2] - Hacs available
+## [0.7.2] - Live on HACS
 - available via HACS!
 - de and nl language file added
 - Updated Readme with HACS link
