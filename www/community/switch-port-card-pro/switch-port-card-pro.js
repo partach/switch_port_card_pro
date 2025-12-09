@@ -478,6 +478,38 @@ class SwitchPortCardProEditor extends HTMLElement {
         select,input{flex:1;padding:8px;border-radius:6px;border:1px solid var(--divider-color);background:var(--input-background-color,#444);color:var(--input-text-color,#fff)}
         .checkbox-row{display:flex;align-items:center;gap:16px;margin:10px 0}
         .checkbox-label{font-weight:500;color:var(--primary-text-color);cursor:pointer}
+        .row{margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+        label{min-width:160px;font-weight:500;color:var(--primary-text-color)}
+        select,input{flex:1;padding:8px;border-radius:6px;border:1px solid var(--divider-color);background:var(--input-background-color,#444);color:var(--input-text-color,#fff)}
+        .checkbox-row{display:flex;align-items:center;gap:16px;margin:10px 0}
+        .checkbox-label{font-weight:500;color:var(--primary-text-color);cursor:pointer}
+        
+        /* NEW: Grid layouts for compact fields */
+        .row-group {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 4px;
+          margin: 4px 0;
+        }
+        .row-group-2 {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
+          margin: 14px 0;
+        }
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .field label {
+          min-width: unset;
+          font-size: 0.85em;
+          margin-bottom: 4px;
+        }
+        .field input, .field select {
+          width: 85%;
+        }
       </style>
       <div style="padding:16px">
         <div class="row"><label>Title</label><input type="text" data-key="name" value="${this._config.name||''}"></div>
@@ -493,11 +525,15 @@ class SwitchPortCardProEditor extends HTMLElement {
             ${entityList.map(e=>`<option value="${e}" ${e===this._config.entity?'selected':''}>${hass.states[e]?.attributes?.friendly_name||e}</option>`).join('')}
           </select>
         </div>
-        <div class="row"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
-        <div class="row"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
-        <div class="row"><label>Max Bandwidth (Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps || 100}"></div>
-        <div class="row"><label>Custom value text</label><input type="text" data-key="custom_text" value="${this._config.custom_text||'Custom'}"></div>
-        <div class="row"><label>Custom port val. text</label><input type="text" data-key="custom_port_text" value="${this._config.custom_port_text||'Custom Port'}"></div>
+        <div class="row-group">
+            <div class="field"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
+            <div class="field"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
+            <div class="field"><label>Bandwidth(Gbps)</label><input type="number" step="10" data-key="max_bandwidth_gbps" value="${this._config.max_bandwidth_gbps || 100}"></div>
+        </div>
+        <div class="row-group-2">
+          <div class="field"><label>Custom system value text</label><input type="text" data-key="custom_text" value="${this._config.custom_text||'Custom'}"></div>
+          <div class="field"><label>Custom port value text</label><input type="text" data-key="custom_port_text" value="${this._config.custom_port_text || 'Custom Port'}"></div>
+        </div>
         <div class="row"><label>Port row 2 display</label>
           <select data-key="row2">
             ${makeOptions(this._config.row2)}
