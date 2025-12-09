@@ -1,4 +1,8 @@
 # Changelog
+## [0.8.0] - Live on HACS
+- Added port color modes (Traffic heatmap, Link speed, Actual speed classification, Vlan)
+- only card is updated
+  
 ## [0.7.2] - Live on HACS
 - available via HACS!
 - de and nl language file added
