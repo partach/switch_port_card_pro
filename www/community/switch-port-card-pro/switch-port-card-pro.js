@@ -27,6 +27,7 @@ class SwitchPortCardPro extends HTMLElement {
       // Row configuration defaults
       row2: "rx_tx_live",
       row3: "speed",
+      color_scheme: "speed",
     };
   }
 
@@ -44,6 +45,7 @@ class SwitchPortCardPro extends HTMLElement {
       show_port_type_labels: true,
       row2: "rx_tx_live",
       row3: "speed",
+      color_scheme: "speed",
       ...config
     };
   }
@@ -155,6 +157,27 @@ class SwitchPortCardPro extends HTMLElement {
         .compact .system-grid{gap:8px;margin:8px 0 4px 0}
         .compact .info-box{padding:5px 6px}
         @media(max-width:600px){.ports-grid{grid-template-columns:repeat(auto-fit,minmax(40px,1fr))}}
+        /* HEATMAP COLORS */
+        .heatmap-10 { background:#ff1744 !important; color:white !important; }
+        .heatmap-9  { background:#ff5722 !important; color:white !important; }
+        .heatmap-8  { background:#ff9800 !important; color:black !important; }
+        .heatmap-7  { background:#ffc107 !important; color:black !important; }
+        .heatmap-6  { background:#ffeb3b !important; color:black !important; }
+        .heatmap-5  { background:#cddc39 !important; color:black !important; }
+        .heatmap-4  { background:#8bc34a !important; color:black !important; }
+        .heatmap-3  { background:#4caf50 !important; color:white !important; }
+        .heatmap-2  { background:#2e7d32 !important; color:white !important; }
+        .heatmap-1  { background:#1b5e20 !important; color:white !important; }
+
+        /* ACTUAL SPEED COLORS */
+        .actual-100m   { background:#9c27b0 !important; color:white !important; } /* purple */
+        .actual-10m    { background:#4176ff !important; color:white !important; } /* blue */
+        .actual-1m     { background:#23a9f4 !important; color:black !important; } /* light blue */
+        .actual-100k   { background:#ffeb3b !important; color:black !important; } /* yellow */
+        .actual-1k     { background:#ffa800 !important; color:black !important; } /* orange */
+        .actual-off    { background:#191919 !important; color:white !important; } /* dark gray */
+        /* VLAN MODE */
+        .vlan-colored { transition: background 0.4s ease, color 0.3s ease; }
       </style>
       <ha-card>
         <div class="header"><span id="title">Switch</span><span id="bandwidth">— Mbps</span></div>
@@ -191,6 +214,12 @@ class SwitchPortCardPro extends HTMLElement {
     if(d>0)return`${d}d ${h%24}h`;
     if(h>0)return`${h}h ${Math.floor((s%3600)/60)}m`;
     return`${Math.floor(s/60)}m`;
+  }
+
+  _getContrastYIQ(hexcolor) {
+    if (!hexcolor || hexcolor === "transparent") return 255;
+    const rgb = hexcolor.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [128,128,128];
+    return (rgb[0]*299 + rgb[1]*587 + rgb[2]*114) / 1000;
   }
 
   _render() {
@@ -331,7 +360,19 @@ class SwitchPortCardPro extends HTMLElement {
     const sfpStart=this._config.sfp_start_port||9;
     const copper=this.shadowRoot.getElementById("copper");
     const sfp=this.shadowRoot.getElementById("sfp");
-    copper.innerHTML=""; sfp.innerHTML="";
+    copper.innerHTML = ""; sfp.innerHTML = "";
+    // === PRE-CALCULATE FOR HEATMAP + VLAN MODE (REQUIRED!) ===
+    const allPorts = [];
+    for (let i = 1; i <= total; i++) {
+      const ent = e[`port_${i}_status`];
+      if (!ent) continue;
+      const rx = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
+      const tx = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
+      const vlan = ent.attributes?.vlan_id;
+      allPorts.push({ i, traffic: rx + tx, vlan });
+    }
+    const maxTraffic = Math.max(...allPorts.map(p => p.traffic), 1);
+    // === END PRE-CALC ===
 
     for (let i=1;i<=total;i++) {
       const ent = e[`port_${i}_status`];
@@ -356,24 +397,90 @@ class SwitchPortCardPro extends HTMLElement {
 
 
       // Speed class & text
-      let speedClass="off", speedText="OFF", direction="";
-      if (isOn && speedMbps>0) {
-        if (speedMbps>=10000){speedClass="on-10g";speedText="10G"}
-        else if(speedMbps>=5000){speedClass="on-5g";speedText="5G"}
-        else if(speedMbps>=2500){speedClass="on-2_5g";speedText="2.5G"}
-        else if(speedMbps>=1000){speedClass="on-1g";speedText="1G"}
-        else if(speedMbps>=100){speedClass="on-100m";speedText="100M"}
-        else if(speedMbps>=10){speedClass="on-10m";speedText="10M"}
-        else speedText=`${speedMbps}M`;
+      // === MAIN EVENT: NEW COLOR SCHEME ENGINE (v2.2.0) ===
+      let speedClass = "off";
+      let speedText = "OFF";
+      let direction = "";
+      let customBg = null;  // for VLAN mode
+      let customTextColor = null;
 
-        if (rxBps > txBps*1.8) direction="\u2193";
-        else if (txBps > rxBps*1.8) direction="\u2191";
-        else direction = '\u2195'; // balanced indicator; we will show ↕ glyph (use \u2195 or \u21C5; using \u2195)
+      if (isOn) {
+        const totalBps = rxBps + txBps;
+
+        switch (this._config.color_scheme || "speed") {
+          // === 1. DEFAULT: SPEED MODE ===
+          case "speed":
+            if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
+            else if (speedMbps >= 5000) { speedClass = "on-5g"; speedText = "5G"; }
+            else if (speedMbps >= 2500) { speedClass = "on-2_5g"; speedText = "2.5G"; }
+            else if (speedMbps >= 1000) { speedClass = "on-1g"; speedText = "1G"; }
+            else if (speedMbps >= 100) { speedClass = "on-100m"; speedText = "100M"; }
+            else if (speedMbps >= 10) { speedClass = "on-10m"; speedText = "10M"; }
+            else { speedClass = "actual-off"; speedText = `${speedMbps}M`; }
+            break;
+
+          // === 2. HEATMAP MODE ===
+          case "heatmap":
+            const portTraffic = allPorts.find(p => p.i === i)?.traffic || 0;
+            const ratio = maxTraffic > 0 ? portTraffic / maxTraffic : 0;
+            if (ratio > 0.9) speedClass = "heatmap-10";
+            else if (ratio > 0.8) speedClass = "heatmap-9";
+            else if (ratio > 0.7) speedClass = "heatmap-8";
+            else if (ratio > 0.6) speedClass = "heatmap-7";
+            else if (ratio > 0.5) speedClass = "heatmap-6";
+            else if (ratio > 0.4) speedClass = "heatmap-5";
+            else if (ratio > 0.3) speedClass = "heatmap-4";
+            else if (ratio > 0.2) speedClass = "heatmap-3";
+            else if (ratio > 0.1) speedClass = "heatmap-2";
+            else speedClass = "heatmap-1";
+            speedText = formatTraffic(portTraffic);
+            break;
+
+          // === 3. VLAN MODE ===
+          case "vlan":
+            speedClass = "vlan-colored";
+            customBg = vlan ? this._vlanColor(vlan) : "#607d8b";
+            customTextColor = this._getContrastYIQ(customBg) < 128 ? "white" : "black";
+            break;
+
+          // === 4. ACTUAL SPEED MODE ===
+          case "actual_speed":
+            const mbps = totalBps / 1e6;
+            if (mbps >= 100) speedClass = "actual-100m";
+            else if (mbps >= 10) speedClass = "actual-10m";
+            else if (mbps >= 1) speedClass = "actual-1m";
+            else if (mbps >= 0.1) speedClass = "actual-100k";
+            else if (mbps > 0.001) speedClass = "actual-1k";
+            else speedClass = "actual-off";
+            speedText = mbps >= 1 ? `${mbps.toFixed(1)}M` : mbps >= 0.1 ? `${(mbps*1000).toFixed(0)}K` : "—";
+            break;
+
+          default:
+            speedClass = "on-1g"; // fallback
+        }
+
+        // Direction arrow
+        if (rxBps > txBps * 1.8) direction = "\u2193";
+        else if (txBps > rxBps * 1.8) direction = "\u2191";
+        else direction = '\u2195';
       } else {
-        // Port OFF
         speedText = "-";
         direction = "-";
       }
+
+      // Apply custom background/text color for VLAN mode
+      const div = document.createElement("div");
+      div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""} ${!isOn ? 'off' : ''}`;
+
+      // === APPLY VLAN COLORING HERE — AFTER DIV EXISTS ===
+      if (this._config.color_scheme === "vlan") {
+        const bg = vlan ? this._vlanColor(vlan) : "#607d8b";
+        const textColor = this._getContrastYIQ(bg) < 128 ? "white" : "black";
+        div.style.background = bg;
+        div.style.color = textColor;
+        div.style.border = "1px solid rgba(255,255,255,0.15)";
+      }
+      // === END OF MAIN EVENT ===
 
       // Use the chosen balanced glyph (we want ↕ — use unicode U+2195 as visual up-down)
       const balancedGlyph = '\u2195'; // ↕
@@ -404,8 +511,6 @@ class SwitchPortCardPro extends HTMLElement {
       const row2Content = renderRowContent(this._config.row2, ctx, isOn);
       const row3Content = renderRowContent(this._config.row3, ctx, isOn);
 
-      const div = document.createElement("div");
-      div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""} ${!isOn ? '-' : ''}`;
       div.title =
         `${name}` +
         (ifDescr ? `\nInterface: ${ifDescr}` : "") +
@@ -483,7 +588,7 @@ class SwitchPortCardProEditor extends HTMLElement {
         select,input{flex:1;padding:8px;border-radius:6px;border:1px solid var(--divider-color);background:var(--input-background-color,#444);color:var(--input-text-color,#fff)}
         .checkbox-row{display:flex;align-items:center;gap:16px;margin:10px 0}
         .checkbox-label{font-weight:500;color:var(--primary-text-color);cursor:pointer}
-        
+
         /* NEW: Grid layouts for compact fields */
         .row-group {
           display: grid;
@@ -544,7 +649,15 @@ class SwitchPortCardProEditor extends HTMLElement {
             ${makeOptions(this._config.row3)}
           </select>
         </div>
-
+        <div class="row">
+          <label>Port Color Scheme</label>
+          <select data-key="color_scheme">
+            <option value="speed" ${this._config.color_scheme === "speed" ? "selected" : ""}>Link Speed</option>
+            <option value="heatmap" ${this._config.color_scheme === "heatmap" ? "selected" : ""}>Heatmap (Traffic)</option>
+            <option value="vlan" ${this._config.color_scheme === "vlan" ? "selected" : ""}>VLAN Colored</option>
+            <option value="actual_speed" ${this._config.color_scheme === "actual_speed" ? "selected" : ""}>Actual Speed</option>
+          </select>
+        </div>
         <div class="checkbox-row">
           <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
           <span class="checkbox-label">Show Bandwidth Gauge</span>
