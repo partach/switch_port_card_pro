@@ -34,11 +34,13 @@ The integration uses baseoids that you can configure on the fly and has default 
 - No entities have to be set manually for SNMP!
 - Supports multiple hubs (switch instances). You can monitor your whole switch farm from one dashboard
 - Indication of `10M`, `100M`, `1G`, `2.5G`, `5G` `10G`, `DOWN`
+- Fully configurable UI to show the information per port as you want it.
 - Automatic detection of number of available ports (if standard oid is honored by network Switch)
 - Visible vlan tagging (ports show to which VLAN they belong)
 - Indication of port name, vlan id, Rx speed, Tx speed, POE power, POE status,  
 - Cpu load and memory load indication as well as firmware version.
-- Customer OID possibility (monitor your specific need)
+- Custom system OID possibility (monitor your specific need like temperature)
+- Custom per port OID (will be 'walked' and information collected per port)
 - Compact mode (for smaller dashboards)
 - Hover Tooltip per port showing status details per port
 - Integration (and card) configuration screen
@@ -46,13 +48,13 @@ The integration uses baseoids that you can configure on the fly and has default 
 
 ## Installation
 Options:
-1. Working on HACS version, coming soon.
+1. HACS version pull request pending...
 2. Already possible to add as HACS--> custom repositories --> repo: partach/switch_port_card_pro, Type:Integration
    * Card to be installed seperatly for now. It is in the reposity under www/community/
    * Install card under /www/community/switch_port_card_pro/switch_port_card_pro.js
-   * To add lovelace card: System -> Dashboards -> Resources -> URL: /local/switch_port_card_pro/switch_port_card_pro.js Type:java script
+   * To add lovelace card: Go to System -> Dashboards -> Resources and fill in URL: /local/switch_port_card_pro/switch_port_card_pro.js Type:java script
 
-## Preparing your switch
+## Preparing your network switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual (don't ask me).
 What is important that you need:
  * SNMP option enabled (tricky to find on some switches)
