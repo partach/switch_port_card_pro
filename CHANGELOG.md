@@ -1,5 +1,9 @@
 # Changelog
-
+## [0.7.2] - Hacs available
+- available via HACS!
+- de and nl language file added
+- Updated Readme with HACS link
+  
 ## [0.7.0] - Hacs compliant
 - Brands compliance now done.
 - Making port visuals in card configurable for end user
