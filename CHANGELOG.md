@@ -1,7 +1,7 @@
 # Changelog
 
-## [0.7.0] - Full hacs compliant
-- fully hacs compliant.
+## [0.7.0] - Hacs compliant
+- Brands compliance now done.
 - Making port visuals in card configurable for end user
 - Other smaller optimizations
 
