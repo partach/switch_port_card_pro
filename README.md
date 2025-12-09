@@ -48,13 +48,14 @@ The integration uses baseoids that you can configure on the fly and has default 
 
 ## Installation
 Options:
-1. Install via HACS  [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro&category=plugin) after HA reboot; 'add integration' and choose switch_port_card_pro in the list
-2. Manually via HACS--> custom repositories --> repo: partach/switch_port_card_pro, Type:Integration
-   * Card to be installed seperatly for now. It is in the reposity under www/community/
+1. Install via HACS  [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro&category=plugin): after HA reboot; 'add integration' and choose switch_port_card_pro in the list.
+   * **Card to be installed seperatly for now**. It is in the reposity under www/community/
    * Install card under /www/community/switch_port_card_pro/switch_port_card_pro.js
    * To add lovelace card: Go to System -> Dashboards -> Resources and fill in URL: /local/switch_port_card_pro/switch_port_card_pro.js Type:java script
+2. Manually via HACS--> custom repositories --> repo: partach/switch_port_card_pro, Type:Integration
+   * Install card seperately, see under 1.
    * reboot, chose 'add integration' and select switch_port_card_pro in the list
-   * Let the install config guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP)
+Let the install config guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP)
 
 ## Preparing your network switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual.
@@ -65,7 +66,7 @@ What is important that you need:
  * Set target IP trap desitnation (on your network switch) towards your HA IP
  * Some switches require different additional details settings (follow manufacturer manual)
 
-## Coniguration options
+## Configuration options
 The card comes with a configuration dialog that guides the instalation in HA.
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20configuration.png" width="600"/>
