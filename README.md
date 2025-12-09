@@ -1,4 +1,4 @@
-# Switch port integration pro
+# Switch Port Integration Pro
 [![Home Assistant](https://img.shields.io/badge/Home_Assistant-00A1DF?style=flat-square&logo=home-assistant&logoColor=white)](https://www.home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5?style=flat-square)](https://hacs.xyz)
 [![HACS Action](https://img.shields.io/github/actions/workflow/status/partach/switch_port_card_pro/validate-hacs.yml?label=HACS%20Action&style=flat-square)](https://github.com/partach/switch_port_card_pro/actions)
@@ -16,7 +16,7 @@ This Home Assistant integration (with card included) shows the status of your sw
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20visual.png" width="600"/>
   <br>
-  <em>Live port status with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (gray)</em>
+  <em>Live port status per switch with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (black)</em>
 </p>
 
 
@@ -74,7 +74,7 @@ The card comes with a configuration dialog that guides the instalation in HA.
   <em>configuration of the card</em>
 </p>
 
-## using the card example
+## Using the card example
 The card has a configuration screen which can be used in stead...
 ```yaml
   type: custom:switch-port-card-pro
@@ -90,7 +90,7 @@ The card has a configuration screen which can be used in stead...
   custom_text: Temperature MAC
 ```
 
-## verified oids for zyxel 1935
+## Verified oids for zyxel 1935
 Example uses switch name 'switch 192.168.1.1'.
 
 For the 'port oid's' the integration will walk these oid's (meaning the sw puts .1 for port 1 behind it, etc.)
