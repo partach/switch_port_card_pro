@@ -67,13 +67,11 @@ class SwitchPortCardPro extends HTMLElement {
 
     let searchEntities = [];
 
-    // CASE 1: User selected a switch from the "Switch (auto)" dropdown → it's a PREFIX, not a device_id
     if (this._config.device) {
       const prefix = this._config.device.endsWith('_') ? this._config.device : this._config.device + "_";
       searchEntities = Object.keys(hass.states).filter(id => id.startsWith(prefix));
     }
 
-    // CASE 2: No device selected → use fallback entity prefix (your old reliable way)
     if (searchEntities.length === 0 && this._config.entity) {
       const parts = this._config.entity.split("_total_bandwidth");
       if (parts.length > 1) {
@@ -85,7 +83,7 @@ class SwitchPortCardPro extends HTMLElement {
       }
     }
 
-    // CASE 3: Still nothing? → search everything (should never happen)
+    // Still nothing? → search everything (should never happen)
     if (searchEntities.length === 0) {
       searchEntities = Object.keys(hass.states);
     }
@@ -168,7 +166,6 @@ class SwitchPortCardPro extends HTMLElement {
         .heatmap-3  { background:#4caf50 !important; color:white !important; }
         .heatmap-2  { background:#2e7d32 !important; color:white !important; }
         .heatmap-1  { background:#1b5e20 !important; color:white !important; }
-
         /* ACTUAL SPEED COLORS */
         .actual-100m   { background:#9c27b0 !important; color:white !important; } /* purple */
         .actual-10m    { background:#4176ff !important; color:white !important; } /* blue */
@@ -372,7 +369,6 @@ class SwitchPortCardPro extends HTMLElement {
       allPorts.push({ i, traffic: rx + tx, vlan });
     }
     const maxTraffic = Math.max(...allPorts.map(p => p.traffic), 1);
-    // === END PRE-CALC ===
 
     for (let i=1;i<=total;i++) {
       const ent = e[`port_${i}_status`];
@@ -386,8 +382,6 @@ class SwitchPortCardPro extends HTMLElement {
       const ifDescr = ent.attributes?.interface || "";
       const port_custom = ent.attributes?.custom || "";
 
-      // Safe attribute reading
-
       const rxBps = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
       const txBps = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
 
@@ -395,9 +389,7 @@ class SwitchPortCardPro extends HTMLElement {
       const rxBpsLifetime = parseInt(ent.attributes?.rx_bps || 0) || 0;
       const txBpsLifetime = parseInt(ent.attributes?.tx_bps || 0) || 0;
 
-
       // Speed class & text
-      // === MAIN EVENT: NEW COLOR SCHEME ENGINE (v2.2.0) ===
       let speedClass = "off";
       let speedText = "OFF";
       let direction = "";
@@ -456,7 +448,7 @@ class SwitchPortCardPro extends HTMLElement {
             break;
 
           default:
-            speedClass = "on-1g"; // fallback
+            speedClass = "on-1g";
         }
 
         // Direction arrow
@@ -472,7 +464,7 @@ class SwitchPortCardPro extends HTMLElement {
       const div = document.createElement("div");
       div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""} ${!isOn ? 'off' : ''}`;
 
-      // === APPLY VLAN COLORING HERE — AFTER DIV EXISTS ===
+      // === APPLY VLAN COLORING HERE ===
       if (this._config.color_scheme === "vlan") {
         const bg = vlan ? this._vlanColor(vlan) : "#607d8b";
         const textColor = this._getContrastYIQ(bg) < 128 ? "white" : "black";
@@ -480,9 +472,6 @@ class SwitchPortCardPro extends HTMLElement {
         div.style.color = textColor;
         div.style.border = "1px solid rgba(255,255,255,0.15)";
       }
-      // === END OF MAIN EVENT ===
-
-      // Use the chosen balanced glyph (we want ↕ — use unicode U+2195 as visual up-down)
       const balancedGlyph = '\u2195'; // ↕
 
       const portDirectionDisplay = (() => {
@@ -685,7 +674,6 @@ class SwitchPortCardProEditor extends HTMLElement {
       sel.value = this._config[sel.dataset.key] ?? '';
     });
 
-    // FIXED EVENT LISTENERS
     this.querySelectorAll("[data-key]").forEach(el => {
       el.addEventListener("change", () => {
         const key = el.dataset.key;
