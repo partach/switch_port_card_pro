@@ -112,12 +112,12 @@ For the 'port oid's' the integration will walk these oid's (meaning the sw puts 
 
 
 ## Changelog
-See CHANGELOG.md
+See CHANGELOG.md: https://github.com/partach/switch_port_card_pro/blob/main/CHANGELOG.md
 
 ## Issues
-Report at GitHub Issues
+Report at GitHub Issues: https://github.com/partach/switch_port_card_pro/issues
 
 ## support development
-If you want to support this and future developments it would be greatly appreciated
+If you want to support this and future developments it would be greatly appreciated :)
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg?style=flat-square)](https://paypal.me/therealbean)
