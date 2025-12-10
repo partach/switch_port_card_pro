@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/partach/switch_port_card_pro?color=ffca28&style=flat-square)](https://github.com/partach/switch_port_card_pro/blob/main/LICENSE)
 [![HACS validated](https://img.shields.io/badge/HACS-validated-41BDF5?style=flat-square)](https://github.com/hacs/integration)
 
-This Home Assistant integration (with card included) shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
+This Home Assistant integration (Card installed separately, see below) shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
 
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20snmp%20integration%20success.png" width="600"/>
@@ -19,7 +19,6 @@ This Home Assistant integration (with card included) shows the status of your sw
   <em>Live port status per switch with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (black)</em>
 </p>
 
-
 **IMPORTANT**: SNMP requires the right base-oid's for getting the required data.
 This base oid can be manufacturer dependent and are sometimes hard to find. 
 The integration uses baseoids that you can configure on the fly and has default some standard ones.
@@ -30,7 +29,7 @@ The integration uses baseoids that you can configure on the fly and has default 
   <em>integration configuration option after install</em>
 </p>
 
-## Features
+## Features (Integration + Card)
 - No entities have to be set manually for SNMP!
 - Supports multiple hubs (switch instances). You can monitor your whole switch farm from one dashboard
 - Indication of `10M`, `100M`, `1G`, `2.5G`, `5G` `10G`, `DOWN`
@@ -48,16 +47,18 @@ The integration uses baseoids that you can configure on the fly and has default 
 
 ## Installation
 Options:
-1. Install via HACS  [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro&category=plugin): after HA reboot; 'add integration' and choose switch_port_card_pro in the list.
-   * **Card to be installed seperatly for now**. It is in this github reposity in directory www/community/
-   * Install card (java script file) in directory /www/community/switch_port_card_pro/switch_port_card_pro.js of your HA install
-   * To make HA see the card: Via UI go to `System` --> `Dashboards` --> `Resources` and fill in two fields:
-     * `URL`: /local/switch_port_card_pro/switch_port_card_pro.js
-     * `Type`: Java script
-2. Install integration manually: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro, `Type`:Integration
-   * Install card seperately, see under 1.
+1. Install via HACS
+   * This integration first: <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
+   * The card second: <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro_card"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
+   * after HA reboot (Needed for new integrations): 'add integration' and choose `switch_port_card_pro` in the list. (card will be visible after browser refresh)
+2. Install manually:
+   * The integration: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro, `Type`: Integration
+   * The card: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro_card, `Type`: Dashboard
    * Reboot, choose `add integration` and select `switch_port_card_pro` in the list
-Let the install config guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP)
+     
+Let the install config of the integration guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP).
+
+Use the card: `Dashboard` --> `Edit` --> `Add Card` --> YAML --> type: custom:switch-port-card-pro, then choose `Show visual Editor`
 
 ## Preparing your network switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual.
