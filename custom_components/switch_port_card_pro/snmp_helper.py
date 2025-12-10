@@ -18,11 +18,11 @@ from pysnmp.hlapi.v3arch.asyncio import (
 from .const import SNMP_VERSION_TO_MP_MODEL
 from pysnmp.smi import builder
 from pysnmp.proto import rfc1902
-# Pre-load empty to short-circuit future loads?
-try:
-  builder.MibBuilder().loadModules()
-except AttributeError:   
-  pass
+# Pre-load just creates a double warning for sync within async... :(
+# try:
+#  builder.MibBuilder().loadModules()
+#except AttributeError:   
+#  pass
 
 # Create engine with disabled MIB
 _SNMP_ENGINE = SnmpEngine()
