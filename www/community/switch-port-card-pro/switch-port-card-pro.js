@@ -24,10 +24,11 @@ class SwitchPortCardPro extends HTMLElement {
       compact_mode: false,
       show_system_info: true,
       show_port_type_labels: true,
-      // Row configuration defaults
       row2: "rx_tx_live",
       row3: "speed",
       color_scheme: "speed",
+      port_size: "medium",
+      ports_per_row: 8,
     };
   }
 
@@ -46,13 +47,15 @@ class SwitchPortCardPro extends HTMLElement {
       row2: "rx_tx_live",
       row3: "speed",
       color_scheme: "speed",
+      port_size: "medium",
+      ports_per_row: 8,
       ...config
     };
   }
 
   set hass(hass) {
     this._hass = hass;
-    if (!this._config) this._config = { total_ports:8, sfp_start_port:9, show_total_bandwidth:true, max_bandwidth_gbps:100, compact_mode:false };
+    if (!this._config) this._config = { total_ports:8, sfp_start_port:9, show_total_bandwidth:true, max_bandwidth_gbps:100, compact_mode:false, ports_per_row: 8 };
     if (!this._entities || this._lastHass !== hass) {
       this._entities = this._collectEntities(hass);
       this._lastHass = hass;
@@ -78,17 +81,14 @@ class SwitchPortCardPro extends HTMLElement {
         const prefix = parts[0] + "_";
         searchEntities = Object.keys(hass.states).filter(id => id.startsWith(prefix));
       } else {
-        // Single entity fallback (very rare)
         searchEntities = [this._config.entity];
       }
     }
 
-    // Still nothing? → search everything (should never happen)
     if (searchEntities.length === 0) {
       searchEntities = Object.keys(hass.states);
     }
 
-    // Now scan the final list exactly like before
     searchEntities.forEach(id => {
       if (typeof id !== "string") return;
       const e = hass.states[id];
@@ -131,16 +131,70 @@ class SwitchPortCardPro extends HTMLElement {
         .gauge{height:18px;background:var(--light-primary-color);border-radius:12px;overflow:hidden;margin:16px 0;display:none;position:relative}
         .gauge-fill{height:100%;background:linear-gradient(90deg,var(--label-badge-green,#4caf50),var(--label-badge-yellow,#ff9800) 50%,var(--label-badge-red,#f44336));background-size:300% 100%;width:100%;transition:background-position .8s ease}
         .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:8px 0 4px;text-align:center;width:100%}
-        .ports-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(${c?'40px':'50px'},1fr));gap:6px}
-        .port{aspect-ratio:2.6/1;background:var(--light-primary-color);border-radius:8px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;font-weight:bold;font-size:0.80em;cursor:default;transition:all .15s;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.06);padding-top:6px}
+
+        /* Grid setup - will be overridden by JavaScript */
+        .ports-grid {
+          display: grid;
+          gap: 6px;
+          grid-template-columns: repeat(auto-fit, minmax(var(--port-min-width, 50px), 1fr));
+          --port-min-width: 50px;
+        }
+
+        /* Size-based grid adjustments */
+        .ports-grid:has(.port.size-small) { --port-min-width: 38px; }
+        .ports-grid:has(.port.size-medium) { --port-min-width: 50px; }
+        .ports-grid:has(.port.size-large) { --port-min-width: 64px; }
+        .ports-grid:has(.port.size-xlarge) { --port-min-width: 78px; }
+
+        /* Compact mode overrides */
+        .compact .ports-grid { --port-min-width: 40px; }
+        .compact .ports-grid:has(.port.size-xlarge) { --port-min-width: 48px; }
+
+        .port {
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 4px 2px 6px 2px !important;
+          gap: 2px;
+          background: var(--light-primary-color);
+          border-radius: 4px;
+          font-size: 0.80em;
+          cursor: default;
+          transition: all .15s;
+          position: relative;
+          box-shadow: 0 1px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.06);
+        }
         .port:hover{transform:scale(1.06);z-index:10}
-        /* Row-1 group */
-        .row1{display:flex;align-items:center;gap:6px;justify-content:center;width:100%;font-size:0.95em;line-height:1}
+
+        .row1 {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          font-size: 0.95em;
+          line-height: 1;
+          flex-shrink: 0;
+          margin-top: -4px;
+        }
         .vlan-dot {width:5px;height:5px;border-radius:50%;box-shadow:0 0 1px rgba(0,0,0,0.6);display:inline-block;transform:translateY(-1px)}
         .port-num{font-size:0.95em;font-weight:700}
         .port-direction{font-size:1.05em;margin-left:4px}
         .port-status{font-size:0.9em;margin-top:4px}
-        .port-row{font-size:0.60em;line-height:1;opacity:0.95;margin-top:6px;min-height:1.15em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .port-row {
+          font-size: 0.60em;
+          line-height: 1.1;
+          opacity: 0.95;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: center;
+          flex: 1;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
         .port.off{background:var(--disabled-background-color);opacity:0.95;color:var(--secondary-text-color)}
         .port.on-10g{background:#1e88e5;color:white}
         .port.on-5g{background:#1565c0;color:white}
@@ -148,13 +202,45 @@ class SwitchPortCardPro extends HTMLElement {
         .port.on-1g{background:#4caf50;color:white}
         .port.on-100m{background:#ff9800;color:black}
         .port.on-10m{background:#f44336;color:white}
-        .port.sfp{border:2px solid #2196f3!important;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
+        .port.sfp{border:2px solid #2196f3!important;border-radius: 1px;;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
+
+        .port.size-small {
+          font-size: 0.80em !important;
+          font-weight: bold;
+          padding-top: 4px !important;
+        }
+        .port.size-medium {
+          font-size: 0.95em !important;
+          font-weight: bold;
+          padding-top: 6px !important;
+        }
+        .port.size-large {
+          font-size: 1.15em !important;
+          padding-top: 8px !important;
+        }
+        .port.size-xlarge {
+          font-size: 1.25em !important;
+          padding-top: 10px !important;
+        }
+
+        .compact .port.size-xlarge {
+          font-size: 0.72em !important;
+        }
+        .compact .port.font-xlarge .port-num,
+        .compact .port.font-xlarge .port-row { font-size: 0.68em !important; }
+
         .poe-indicator{position:absolute;top:4px;right:6px;font-size:0.7em;font-weight:bold;color:#00ff00;text-shadow:0 0 4px #000}
-        .compact .ports-grid{grid-template-columns:repeat(auto-fit,minmax(40px,1fr))}
+
         .compact .port{aspect-ratio:3.6/1!important;font-size:0.58em!important;padding-top:4px}
         .compact .system-grid{gap:8px;margin:8px 0 4px 0}
         .compact .info-box{padding:5px 6px}
-        @media(max-width:600px){.ports-grid{grid-template-columns:repeat(auto-fit,minmax(40px,1fr))}}
+
+        @media (max-width: 900px) {
+          .ports-grid {
+            grid-template-columns: repeat(auto-fit, minmax(var(--port-min-width, 40px), 1fr));
+          }
+        }
+
         /* HEATMAP COLORS */
         .heatmap-10 { background:#ff1744 !important; color:white !important; }
         .heatmap-9  { background:#ff5722 !important; color:white !important; }
@@ -166,15 +252,22 @@ class SwitchPortCardPro extends HTMLElement {
         .heatmap-3  { background:#4caf50 !important; color:white !important; }
         .heatmap-2  { background:#2e7d32 !important; color:white !important; }
         .heatmap-1  { background:#1b5e20 !important; color:white !important; }
+
         /* ACTUAL SPEED COLORS */
-        .actual-100m   { background:#9c27b0 !important; color:white !important; } /* purple */
-        .actual-10m    { background:#4176ff !important; color:white !important; } /* blue */
-        .actual-1m     { background:#23a9f4 !important; color:black !important; } /* light blue */
-        .actual-100k   { background:#ffeb3b !important; color:black !important; } /* yellow */
-        .actual-1k     { background:#ffa800 !important; color:black !important; } /* orange */
-        .actual-off    { background:#191919 !important; color:white !important; } /* dark gray */
+        .actual-100m   { background:#9c27b0 !important; color:white !important; }
+        .actual-10m    { background:#4176ff !important; color:white !important; }
+        .actual-1m     { background:#23a9f4 !important; color:black !important; }
+        .actual-100k   { background:#ffeb3b !important; color:black !important; }
+        .actual-1k     { background:#ffa800 !important; color:black !important; }
+        .actual-off    { background:#191919 !important; color:white !important; }
+
         /* VLAN MODE */
         .vlan-colored { transition: background 0.4s ease, color 0.3s ease; }
+
+        ha-card {
+          box-shadow: none !important;
+          border: none !important;
+        }
       </style>
       <ha-card>
         <div class="header"><span id="title">Switch</span><span id="bandwidth">— Mbps</span></div>
@@ -189,19 +282,34 @@ class SwitchPortCardPro extends HTMLElement {
         <div class="system-grid ${c}" id="system"></div>
       </ha-card>
     `;
+
+    // Apply ports_per_row setting immediately after creating skeleton
+    this._applyPortsPerRow();
+  }
+
+  _applyPortsPerRow() {
+    if (!this.shadowRoot) return;
+
+    const portsPerRow = this._config.ports_per_row || 8;
+    const copperGrid = this.shadowRoot.getElementById("copper");
+    const sfpGrid = this.shadowRoot.getElementById("sfp");
+
+    if (copperGrid && sfpGrid) {
+      // Set fixed columns based on config
+      const gridStyle = `repeat(${portsPerRow}, 1fr)`;
+      copperGrid.style.gridTemplateColumns = gridStyle;
+      sfpGrid.style.gridTemplateColumns = gridStyle;
+    }
   }
 
   _vlanColor(vlan) {
     if (!vlan) return "transparent";
-
-    // 20 distinct colors – consistent per VLAN
     const colors = [
       "#dc5d87ff", "#7b6291ff", "#7f798aff", "#434f94ff", "#57a5e4ff",
       "#015881ff", "#00bcd4", "#009688", "#4caf50", "#8bc34a",
       "#ffc107", "#ff9800", "#ff5722", "#795548", "#607d8b",
       "#4fc3f7", "#ba68c8", "#ffb74d", "#aed581", "#ce93d8"
     ];
-
     return colors[vlan % colors.length];
   }
 
@@ -221,6 +329,10 @@ class SwitchPortCardPro extends HTMLElement {
 
   _render() {
     if (!this._hass || !this._config) return;
+
+    // Apply ports_per_row setting on every render
+    this._applyPortsPerRow();
+
     const e = this._entities || {};
     if (Object.keys(e).length===0) {
       this.shadowRoot.querySelector(".header").innerHTML = `<span style="color:var(--label-badge-red)">No data — check integration</span>`;
@@ -236,15 +348,14 @@ class SwitchPortCardPro extends HTMLElement {
       let val = Number(bw.state);
       const u = (bw.attributes?.unit_of_measurement||"").toLowerCase();
 
-      // SNMP integration bug: labels as Mbit/s but actually reports Kbps
       if (u.includes("mbit") && val > 1000) {
-        val = val / 1000; // Convert Kbps to Mbps
+        val = val / 1000;
       } else if (u.includes("bit/s") && !u.includes("mbit") && !u.includes("kbit") && !u.includes("gbit")) {
-        val = val / 1e6; // bps to Mbps
+        val = val / 1e6;
       } else if (u.includes("kbit")) {
-        val = val / 1e3; // Kbps to Mbps
+        val = val / 1e3;
       } else if (u.includes("gbit")) {
-        val = val * 1e3; // Gbps to Mbps
+        val = val * 1e3;
       }
       bwText = `${val.toFixed(1)} Mbps`;
     }
@@ -264,7 +375,7 @@ class SwitchPortCardPro extends HTMLElement {
       this.shadowRoot.getElementById("system").innerHTML = `
         ${makeBox(cpu?.state != null ? Math.round(cpu.state) + "%" : null, "CPU")}
         ${makeBox(mem?.state != null ? Math.round(mem.state) + "%" : null, "Memory")}
-        ${makeBox(up?.state != null ? this._formatTime(Number(up.state)) : null, "Uptime")}
+        ${makeBox(up?.state != null ? this._formatTime(Number(up.state)) : null, "Up-time")}
         ${makeBox(host?.state, "Host")}
         ${makeBox(poe?.state != null ? poe.state + " W" : null, "PoE Total")}
         ${makeBox(fw?.state, "Firmware")}
@@ -297,56 +408,53 @@ class SwitchPortCardPro extends HTMLElement {
       fill.style.backgroundPosition = `${pct < 50 ? 0 : (pct - 50) * 2}% 0`;
     } else gauge.style.display="none";
 
-    // Helper: format traffic with proper units (Option C chosen: show 0 as 0K)
     const formatTraffic = (bps) => {
       if (!bps || isNaN(bps) || bps === 0) return `0K`;
       const mbps = bps / 1e6;
-      if (mbps >= 1000) return `${(mbps/1000).toFixed(1)}G`;
-      if (mbps >= 1) return `${mbps.toFixed(1)}M`;
-      return `${(bps/1e3).toFixed(0)}K`;
+      if (mbps >= 1000) return `${Math.round(mbps / 1000)}G`;
+      if (mbps >= 1) return `${Math.round(mbps)}M`;
+      return `${Math.round(bps / 1000)}K`;
     };
 
-    // Helper to render row content based on config key
     const renderRowContent = (field, ctx, portIsOn) => {
       const key = (field || "").toLowerCase().trim();
 
-      const truncate = (str, max = 12) => {
+      const truncate = (str, portSize = "medium") => {
         if (!str) return '\u00A0';
         str = str.toString().trim();
-        return str.length <= max ? str : str.slice(0, 10) + "..";
+        let maxChars;
+        switch (portSize) {
+          case "small":   maxChars = 14; break;
+          case "medium":  maxChars = 13; break;
+          case "large":   maxChars = 11;  break;
+          case "xlarge":  maxChars = 9;  break;
+          default:        maxChars = 10;
+        }
+        return str.length <= maxChars ? str : str.slice(0, maxChars - 2) + "..";
       };
 
       switch (key) {
-        // LIVE TRAFFIC
         case "rx_tx_live":
         case "rx/tx_live":
         case "live":
-          return `\u2193${formatTraffic(ctx.rxBps)} \u2191${formatTraffic(ctx.txBps)}`;
-
-        // LIFETIME TRAFFIC
+          return `${formatTraffic(ctx.rxBps)}-${formatTraffic(ctx.txBps)}`;
         case "rx_tx":
         case "rx/tx":
         case "lifetime":
         case "total":
-          return `\u2193${formatTraffic(ctx.rxBpsLifetime)} \u2191${formatTraffic(ctx.txBpsLifetime)}`;
-
+          return `${formatTraffic(ctx.rxBpsLifetime)}-${formatTraffic(ctx.txBpsLifetime)}`;
         case "speed":
           return portIsOn ? (ctx.speedText || '\u00A0') : '\u00A0';
-
         case "port_custom":
         case "custom":
-          return truncate(ctx.port_custom) || '\u00A0';
-
+          return truncate(ctx.port_custom, this._config.port_size || "medium") || '\u00A0';
         case "name":
-          return truncate(ctx.name) || '\u00A0';
-
+          return truncate(ctx.name, this._config.port_size || "medium") || '\u00A0';
         case "interface":
-          return truncate(ctx.ifDescr) || '\u00A0';
-
+          return truncate(ctx.ifDescr, this._config.port_size || "medium") || '\u00A0';
         case "vlan_id":
         case "vlan":
           return ctx.vlan ? `VLAN ${ctx.vlan}` : '\u00A0';
-
         default:
           return '\u00A0';
       }
@@ -358,7 +466,7 @@ class SwitchPortCardPro extends HTMLElement {
     const copper=this.shadowRoot.getElementById("copper");
     const sfp=this.shadowRoot.getElementById("sfp");
     copper.innerHTML = ""; sfp.innerHTML = "";
-    // === PRE-CALCULATE FOR HEATMAP + VLAN MODE (REQUIRED!) ===
+
     const allPorts = [];
     for (let i = 1; i <= total; i++) {
       const ent = e[`port_${i}_status`];
@@ -384,23 +492,19 @@ class SwitchPortCardPro extends HTMLElement {
 
       const rxBps = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
       const txBps = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
-
-      // Lifetime traffic — kept for backward compatibility
       const rxBpsLifetime = parseInt(ent.attributes?.rx_bps || 0) || 0;
       const txBpsLifetime = parseInt(ent.attributes?.tx_bps || 0) || 0;
 
-      // Speed class & text
       let speedClass = "off";
       let speedText = "OFF";
       let direction = "";
-      let customBg = null;  // for VLAN mode
+      let customBg = null;
       let customTextColor = null;
 
       if (isOn) {
         const totalBps = rxBps + txBps;
 
         switch (this._config.color_scheme || "speed") {
-          // === 1. DEFAULT: SPEED MODE ===
           case "speed":
             if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
             else if (speedMbps >= 5000) { speedClass = "on-5g"; speedText = "5G"; }
@@ -411,7 +515,6 @@ class SwitchPortCardPro extends HTMLElement {
             else { speedClass = "actual-off"; speedText = `${speedMbps}M`; }
             break;
 
-          // === 2. HEATMAP MODE ===
           case "heatmap":
             const portTraffic = allPorts.find(p => p.i === i)?.traffic || 0;
             const ratio = maxTraffic > 0 ? portTraffic / maxTraffic : 0;
@@ -428,14 +531,12 @@ class SwitchPortCardPro extends HTMLElement {
             speedText = formatTraffic(portTraffic);
             break;
 
-          // === 3. VLAN MODE ===
           case "vlan":
             speedClass = "vlan-colored";
             customBg = vlan ? this._vlanColor(vlan) : "#607d8b";
             customTextColor = this._getContrastYIQ(customBg) < 128 ? "white" : "black";
             break;
 
-          // === 4. ACTUAL SPEED MODE ===
           case "actual_speed":
             const mbps = totalBps / 1e6;
             if (mbps >= 100) speedClass = "actual-100m";
@@ -451,7 +552,6 @@ class SwitchPortCardPro extends HTMLElement {
             speedClass = "on-1g";
         }
 
-        // Direction arrow
         if (rxBps > txBps * 1.8) direction = "\u2193";
         else if (txBps > rxBps * 1.8) direction = "\u2191";
         else direction = '\u2195';
@@ -460,9 +560,10 @@ class SwitchPortCardPro extends HTMLElement {
         direction = "-";
       }
 
-      // Apply custom background/text color for VLAN mode
       const div = document.createElement("div");
       div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""} ${!isOn ? 'off' : ''}`;
+      const size = this._config.port_size || "medium";
+      div.classList.add(`size-${size}`);
 
       // === APPLY VLAN COLORING HERE ===
       if (this._config.color_scheme === "vlan") {
@@ -582,27 +683,27 @@ class SwitchPortCardProEditor extends HTMLElement {
         .row-group {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 4px;
-          margin: 4px 0;
+          gap: 2px;
+          margin: 2px 0;
         }
         .row-group-2 {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 14px;
-          margin: 14px 0;
+          gap: 2px;
+          margin: 2px 0;
         }
         .field {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
         }
         .field label {
           min-width: unset;
           font-size: 0.85em;
-          margin-bottom: 4px;
+          margin-bottom: 0px;
         }
         .field input, .field select {
-          width: 85%;
+          width: 87%;
         }
       </style>
       <div style="padding:16px">
@@ -628,6 +729,21 @@ class SwitchPortCardProEditor extends HTMLElement {
           <div class="field"><label>Custom system value text</label><input type="text" data-key="custom_text" value="${this._config.custom_text||'Custom'}"></div>
           <div class="field"><label>Custom port value text</label><input type="text" data-key="custom_port_text" value="${this._config.custom_port_text || 'Custom Port'}"></div>
         </div>
+        <div class="row-group-2">
+          <div class="field">
+            <label>Port Size</label>
+            <select data-key="port_size">
+                <option value="small"   ${this._config.port_size === "small"   ? "selected" : ""}>Small</option>
+                <option value="medium"  ${this._config.port_size === "medium"  ? "selected" : ""}>Medium (default)</option>
+                <option value="large"   ${this._config.port_size === "large"   ? "selected" : ""}>Large</option>
+                <option value="xlarge"  ${this._config.port_size === "xlarge"  ? "selected" : ""}>Extra Large</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Ports Per Row</label>
+            <input type="number" min="1" max="24" data-key="ports_per_row" value="${this._config.ports_per_row || 8}">
+          </div>
+        </div>
         <div class="row"><label>Port row 2 display</label>
           <select data-key="row2">
             ${makeOptions(this._config.row2)}
@@ -651,21 +767,17 @@ class SwitchPortCardProEditor extends HTMLElement {
           <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
           <span class="checkbox-label">Show Bandwidth Gauge</span>
         </div>
+
+        <!-- Show System Info Switch -->
         <div class="checkbox-row">
-          <ha-checkbox data-key="compact_mode" ${this._config.compact_mode?'checked':''}></ha-checkbox>
-          <span class="checkbox-label">Compact Mode</span>
+          <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
+          <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
         </div>
 
-          <!-- Show System Info Switch -->
-          <div class="checkbox-row">
-            <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
-            <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
-          </div>
-
-          <div class="checkbox-row">
-            <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
-            <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
-          </div>
+        <div class="checkbox-row">
+          <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
+          <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
+        </div>
 
       </div>
     `;
