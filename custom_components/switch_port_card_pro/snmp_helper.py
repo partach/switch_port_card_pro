@@ -209,11 +209,16 @@ async def discover_physical_ports(
             # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
             is_likely_physical = (
                 # Standard keywords
-                any(k in descr_lower for k in ["port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", "gigabit", "fasteth"]) or
-                # Just a number → very common on managed switches
+                any(k in descr_lower for k in [
+                    "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", 
+                    "gigabit", "fasteth", "10g", "slot:", "level"
+                ]) or
+                # Just a number → very common
                 descr_clean.isdigit() or
-                # Starts with "p" or "g" + digit (e.g. "p1", "g25")
-                (descr_clean and descr_clean[0] in "pgPG" and any(c.isdigit() for c in descr_clean))
+                # Starts with "p" or "g" + digit
+                (descr_clean and descr_clean[0] in "pgPG" and any(c.isdigit() for c in descr_clean)) or
+                # Dell-style: "Slot: 0 Port: X ..."
+                descr_lower.startswith("slot:") and "port:" in descr_lower
             )
 
             if not is_likely_physical:
