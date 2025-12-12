@@ -1,6 +1,7 @@
 # Changelog
 ## [0.8.1] - Card installed separately via HACS
-- Improved auto port detection for unify example from users
+- Improved auto port detection for unifi after example from users
+- card install via hacs in progress. Already available via custom repositories (partach/switch-port-card-pro-card)
 
 ## [0.8.0] - Port color modes
 - Added port color modes (Traffic heatmap, Link speed, Actual speed classification, Vlan)
