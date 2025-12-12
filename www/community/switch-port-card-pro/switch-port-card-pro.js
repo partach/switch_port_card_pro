@@ -155,11 +155,11 @@ class SwitchPortCardPro extends HTMLElement {
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 4px 2px 6px 2px !important;
+          padding: 4px 2px 4px 2px !important;
           gap: 2px;
           background: var(--light-primary-color);
           border-radius: 4px;
-          font-size: 0.80em;
+//          font-size: 0.80em;
           cursor: default;
           transition: all .15s;
           position: relative;
@@ -173,7 +173,7 @@ class SwitchPortCardPro extends HTMLElement {
           justify-content: center;
           gap: 6px;
           width: 100%;
-          font-size: 0.95em;
+//          font-size: 0.95em;
           line-height: 1;
           flex-shrink: 0;
           margin-top: -4px;
@@ -183,7 +183,7 @@ class SwitchPortCardPro extends HTMLElement {
         .port-direction{font-size:1.05em;margin-left:4px}
         .port-status{font-size:0.9em;margin-top:4px}
         .port-row {
-          font-size: 0.60em;
+ //         font-size: 0.60em;
           line-height: 1.1;
           opacity: 0.95;
           white-space: nowrap;
@@ -191,7 +191,7 @@ class SwitchPortCardPro extends HTMLElement {
           text-overflow: ellipsis;
           text-align: center;
           flex: 1;
-          margin-top: 4px;
+          margin-top: 2px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -206,27 +206,24 @@ class SwitchPortCardPro extends HTMLElement {
         .port.sfp{border:2px solid #2196f3!important;border-radius: 1px;;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
 
         .port.size-xsmall {
-          font-size: 0.80em !important;
-          font-weight: bold;
-          padding-top: 4px !important;
+          font-size: 0.60em !important;
+          padding-top: 6px !important;
         }
         .port.size-small {
-          font-size: 0.95em !important;
-          font-weight: bold;
-          padding-top: 4px !important;
+          font-size: 0.80em !important;
+          padding-top: 6px !important;
         }
         .port.size-medium {
-          font-size: 1.10em !important;
-          font-weight: bold;
+          font-size: 1em !important;
           padding-top: 6px !important;
         }
         .port.size-large {
-          font-size: 1.25em !important;
-          padding-top: 8px !important;
+          font-size: 1.20em !important;
+          padding-top: 6px !important;
         }
         .port.size-xlarge {
           font-size: 1.40em !important;
-          padding-top: 10px !important;
+          padding-top: 6px !important;
         }
 
         .compact .port.size-xlarge {
