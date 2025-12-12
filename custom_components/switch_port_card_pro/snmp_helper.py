@@ -237,7 +237,15 @@ async def discover_physical_ports(
             is_copper = not is_sfp
 
             # === STEP 4: Friendly name ===
-            if descr_clean.isdigit():
+            if "slot:" in descr_lower and "port:" in descr_lower:
+                # Extract port number from "Slot: 0 Port: 25 ..."
+                import re
+                match = re.search(r"port:\s*(\d+)", descr_lower, re.I)
+                if match:
+                    name = f"Port {match.group(1)}"
+                else:
+                    name = f"Port {logical_port}"
+            elif descr_clean.isdigit():
                 name = f"Port {descr_clean}"
             elif "port " in descr_lower:
                 name = descr_clean
