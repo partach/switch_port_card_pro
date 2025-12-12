@@ -93,10 +93,10 @@ The card has a configuration screen which can be used in stead...
   custom_text: Temperature MAC
 ```
 
-## Auto port detection does not work
+## If auto port detection does not work
 SNMP implementations very a lot sadly. I will try to update with specific examples shared.
-Per default, if the auto port detection does not work the configuration will show 8 ports.
-See picture below how to set it to the desired amount via the port selection drop down selection list.
+Per **default**, if the auto port detection does not work the configuration will show **8 ports**.
+See picture below how to set it to the desired amount via the port selection drop down selection list (if auto detect fails).
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/config%20setting.png" width="600"/>
   <br>
