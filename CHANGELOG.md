@@ -1,7 +1,6 @@
 # Changelog
 ## [0.8.1] - Card installed separately via HACS
-- No new functionality, card can now be installed via HACS
-- Improved auto port detection for unify example from user
+- Improved auto port detection for unify example from users
 
 ## [0.8.0] - Port color modes
 - Added port color modes (Traffic heatmap, Link speed, Actual speed classification, Vlan)
