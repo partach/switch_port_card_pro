@@ -100,7 +100,7 @@ See picture below how to set it to the desired amount via the port selection dro
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/config%20setting.png" width="600"/>
   <br>
-  <em>configuration of the card</em>
+  <em>configuration of the integration</em>
 </p>
 
 ## Verified oids for zyxel 1935
