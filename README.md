@@ -16,7 +16,7 @@ This Home Assistant integration (Card installed separately, see below) shows the
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20visual.png" width="600"/>
   <br>
-  <em>Live port status per switch with color coding: 10M/100M (orange), 1G (green), 10G (blue), DOWN (black)</em>
+  <em>Live port status per switch with color coding (can be configured in several ways)
 </p>
 
 **IMPORTANT**: SNMP requires the right base-oid's for getting the required data.
