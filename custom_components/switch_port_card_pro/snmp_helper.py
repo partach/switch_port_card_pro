@@ -205,9 +205,8 @@ async def discover_physical_ports(
             ]):
                 continue
             # NEW: reject CPU interface
-            if "cpu interface" in descr_lower:
+            if any(x in descr_lower for x in ["cpu interface", "link aggregate"]):
                 continue
-                
             # === STEP 2: Accept ANYTHING that looks like a real port ===
             # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
             is_likely_physical = (
