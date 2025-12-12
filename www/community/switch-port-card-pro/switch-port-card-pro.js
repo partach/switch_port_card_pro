@@ -29,6 +29,7 @@ class SwitchPortCardPro extends HTMLElement {
       color_scheme: "speed",
       port_size: "medium",
       ports_per_row: 8,
+      hide_unused_week: false,
     };
   }
 
@@ -49,6 +50,7 @@ class SwitchPortCardPro extends HTMLElement {
       color_scheme: "speed",
       port_size: "medium",
       ports_per_row: 8,
+      hide_unused_week: false,
       ...config
     };
   }
@@ -131,16 +133,15 @@ class SwitchPortCardPro extends HTMLElement {
         .gauge{height:18px;background:var(--light-primary-color);border-radius:12px;overflow:hidden;margin:16px 0;display:none;position:relative}
         .gauge-fill{height:100%;background:linear-gradient(90deg,var(--label-badge-green,#4caf50),var(--label-badge-yellow,#ff9800) 50%,var(--label-badge-red,#f44336));background-size:300% 100%;width:100%;transition:background-position .8s ease}
         .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:8px 0 4px;text-align:center;width:100%}
-
-        /* Grid setup - will be overridden by JavaScript */
         .ports-grid {
           display: grid;
-          gap: 6px;
+          gap: 3px;
           grid-template-columns: repeat(auto-fit, minmax(var(--port-min-width, 50px), 1fr));
           --port-min-width: 50px;
         }
 
         /* Size-based grid adjustments */
+        .ports-grid:has(.port.size-xsmall) { --port-min-width: 38px; }
         .ports-grid:has(.port.size-small) { --port-min-width: 38px; }
         .ports-grid:has(.port.size-medium) { --port-min-width: 50px; }
         .ports-grid:has(.port.size-large) { --port-min-width: 64px; }
@@ -204,22 +205,27 @@ class SwitchPortCardPro extends HTMLElement {
         .port.on-10m{background:#f44336;color:white}
         .port.sfp{border:2px solid #2196f3!important;border-radius: 1px;;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
 
-        .port.size-small {
+        .port.size-xsmall {
           font-size: 0.80em !important;
           font-weight: bold;
           padding-top: 4px !important;
         }
-        .port.size-medium {
+        .port.size-small {
           font-size: 0.95em !important;
+          font-weight: bold;
+          padding-top: 4px !important;
+        }
+        .port.size-medium {
+          font-size: 1.10em !important;
           font-weight: bold;
           padding-top: 6px !important;
         }
         .port.size-large {
-          font-size: 1.15em !important;
+          font-size: 1.25em !important;
           padding-top: 8px !important;
         }
         .port.size-xlarge {
-          font-size: 1.25em !important;
+          font-size: 1.40em !important;
           padding-top: 10px !important;
         }
 
@@ -287,6 +293,14 @@ class SwitchPortCardPro extends HTMLElement {
     this._applyPortsPerRow();
   }
 
+  _formatLastSeen(seconds) {
+    if (!seconds || seconds <= 0) return "—";
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h`;
+    return "<1h";
+  }
   _applyPortsPerRow() {
     if (!this.shadowRoot) return;
 
@@ -424,6 +438,7 @@ class SwitchPortCardPro extends HTMLElement {
         str = str.toString().trim();
         let maxChars;
         switch (portSize) {
+          case "xsmall":   maxChars = 14; break;
           case "small":   maxChars = 14; break;
           case "medium":  maxChars = 13; break;
           case "large":   maxChars = 11;  break;
@@ -468,25 +483,29 @@ class SwitchPortCardPro extends HTMLElement {
     copper.innerHTML = ""; sfp.innerHTML = "";
 
     const allPorts = [];
+
     for (let i = 1; i <= total; i++) {
       const ent = e[`port_${i}_status`];
       if (!ent) continue;
+
       const rx = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
       const tx = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
       const vlan = ent.attributes?.vlan_id;
       allPorts.push({ i, traffic: rx + tx, vlan });
+
     }
     const maxTraffic = Math.max(...allPorts.map(p => p.traffic), 1);
-
-    for (let i=1;i<=total;i++) {
+    const now = Date.now() / 1000;
+    const timeperiod = 24 * 3600 * 3;
+    for (let i = 1; i <= total; i++) {
       const ent = e[`port_${i}_status`];
       if (!ent) continue;
 
-      const isOn = ent.state==="on";
+      const isOn = ent.state === "on";
       const speedMbps = Math.round((ent.attributes?.speed_bps || 0) / 1e6) || 0;
       const name = ent.attributes?.port_name?.trim() || `Port ${i}`;
       const vlan = ent.attributes?.vlan_id;
-      const poeEnabled = ent.attributes?.poe_enabled===true;
+      const poeEnabled = ent.attributes?.poe_enabled === true;
       const ifDescr = ent.attributes?.interface || "";
       const port_custom = ent.attributes?.custom || "";
 
@@ -494,13 +513,17 @@ class SwitchPortCardPro extends HTMLElement {
       const txBps = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
       const rxBpsLifetime = parseInt(ent.attributes?.rx_bps || 0) || 0;
       const txBpsLifetime = parseInt(ent.attributes?.tx_bps || 0) || 0;
-
+      const lastChanged = new Date(ent.last_changed || ent.last_updated).getTime() / 1000;
+      const idleSeconds = now - lastChanged;
       let speedClass = "off";
       let speedText = "OFF";
       let direction = "";
       let customBg = null;
       let customTextColor = null;
 
+      if (!isOn && this._config.hide_unused_week && idleSeconds >= timeperiod) {
+        continue;
+      }
       if (isOn) {
         const totalBps = rxBps + txBps;
 
@@ -600,7 +623,7 @@ class SwitchPortCardPro extends HTMLElement {
       // Row2/Row3 according to config; for OFF ports, row2 still shows traffic as per your choice (0K/0K) and row3 blank
       const row2Content = renderRowContent(this._config.row2, ctx, isOn);
       const row3Content = renderRowContent(this._config.row3, ctx, isOn);
-
+      const lastSeen = `Last seen: ${this._formatLastSeen(idleSeconds)}`;
       div.title =
         `${name}` +
         (ifDescr ? `\nInterface: ${ifDescr}` : "") +
@@ -609,7 +632,8 @@ class SwitchPortCardPro extends HTMLElement {
         (vlan ? `\nVLAN: ${vlan}` : "") +
         `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
         `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s` +
-        (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "");
+        (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "") +
+          `\n${lastSeen}`;
       div.innerHTML = `
         <div class="row1">
           <span class="vlan-dot" style="background:${this._vlanColor(vlan)}"></span>
@@ -676,7 +700,7 @@ class SwitchPortCardProEditor extends HTMLElement {
         .row{margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
         label{min-width:160px;font-weight:500;color:var(--primary-text-color)}
         select,input{flex:1;padding:8px;border-radius:6px;border:1px solid var(--divider-color);background:var(--input-background-color,#444);color:var(--input-text-color,#fff)}
-        .checkbox-row{display:flex;align-items:center;gap:16px;margin:10px 0}
+        .checkbox-row{display:flex;align-items:center;gap:4px;margin:2px 0}
         .checkbox-label{font-weight:500;color:var(--primary-text-color);cursor:pointer}
 
         /* NEW: Grid layouts for compact fields */
@@ -733,6 +757,7 @@ class SwitchPortCardProEditor extends HTMLElement {
           <div class="field">
             <label>Port Size</label>
             <select data-key="port_size">
+                <option value="xsmall"   ${this._config.port_size === "xsmall"   ? "selected" : ""}>Extra Small</option>
                 <option value="small"   ${this._config.port_size === "small"   ? "selected" : ""}>Small</option>
                 <option value="medium"  ${this._config.port_size === "medium"  ? "selected" : ""}>Medium (default)</option>
                 <option value="large"   ${this._config.port_size === "large"   ? "selected" : ""}>Large</option>
@@ -778,7 +803,10 @@ class SwitchPortCardProEditor extends HTMLElement {
           <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
           <span class="checkbox-label">Show Port Section Title (Copper/Fiber)</span>
         </div>
-
+        <div class="checkbox-row">
+          <ha-checkbox data-key="hide_unused_week" ${this._config.hide_unused_week ? 'checked' : ''}></ha-checkbox>
+          <span class="checkbox-label">Hide Unused Ports (inactive >=3 days)</span>
+        </div>
       </div>
     `;
     // Fix Lovelace editor not showing correct dropdown values
