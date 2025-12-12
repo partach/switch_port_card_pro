@@ -104,7 +104,7 @@ See picture below how to set it to the desired amount via the port selection dro
 </p>
 
 ## Verified oids for zyxel 1935
-Example uses switch name 'switch 192.168.1.1'.
+Example uses switch name 'switch 192.168.1.1'. The number 890 is the zyxel manufacturer code (oid's  with that number are manufacturer specific)
 
 For the 'port oid's' the integration will walk these oid's (meaning the sw puts .1 for port 1 behind it, etc.)
 | Port # | Entity ID Example                          | Attribute        | Description                          | SNMP OID (or note)                  |
