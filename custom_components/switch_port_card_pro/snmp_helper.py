@@ -204,7 +204,10 @@ async def discover_physical_ports(
                 "bond", "veth", "bridge", "virtual", "null", "gre", "sit", "ipip"
             ]):
                 continue
-
+            # NEW: reject CPU interface
+            if "cpu interface" in descr_lower:
+                continue
+                
             # === STEP 2: Accept ANYTHING that looks like a real port ===
             # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
             is_likely_physical = (
@@ -232,7 +235,7 @@ async def discover_physical_ports(
                 if_type = 0
 
             is_sfp_by_type = if_type in (56, 117, 161, 171, 172)  # ethernetCsmacd=6 is copper
-            is_sfp_by_name = any(k in descr_lower for k in ["sfp", "fiber", "optical", "1000base-x", "10gbase", "mini-gbic", "sfp+", "sfp28"])
+            is_sfp_by_name = any(k in descr_lower for k in ["sfp", "fiber", "optical", "1000base-x", "10gbase", "10g", "mini-gbic", "sfp+", "sfp28"])
             is_sfp = is_sfp_by_type or is_sfp_by_name
             is_copper = not is_sfp
 
