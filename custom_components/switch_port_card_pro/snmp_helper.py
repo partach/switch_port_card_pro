@@ -201,26 +201,25 @@ async def discover_physical_ports(
             # === STEP 1: Reject obvious virtual/junk interfaces ===
             if any(bad in descr_lower for bad in [
                 "lo", "br", "vlan", "tun", "dummy", "wlan", "ath", "wifi", "wl",
-                "bond", "veth", "bridge", "virtual", "null", "gre", "sit", "ipip"
+                "bond", "veth", "bridge", "virtual", "null", "gre", "sit", "ipip",
+                "cpu interface", "link aggregate"
             ]):
                 continue
-            # NEW: reject CPU interface
-            if any(x in descr_lower for x in ["cpu interface", "link aggregate"]):
-                continue
+
             # === STEP 2: Accept ANYTHING that looks like a real port ===
             # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
             is_likely_physical = (
-                # Standard keywords
+                # Standard keywords (all lowercase since we're checking descr_lower)
                 any(k in descr_lower for k in [
                     "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", 
                     "gigabit", "fasteth", "10g", "slot:", "level"
                 ]) or
-                # Just a number → very common
+                # Just a number → very common (case-insensitive since digits have no case)
                 descr_clean.isdigit() or
-                # Starts with "p" or "g" + digit
-                (descr_clean and descr_clean[0] in "pgPG" and any(c.isdigit() for c in descr_clean)) or
-                # Dell-style: "Slot: 0 Port: X ..."
-                descr_lower.startswith("slot:") and "port:" in descr_lower
+                # Starts with "p" or "g" + digit (now using descr_lower consistently)
+                (descr_lower and descr_lower[0] in "pg" and any(c.isdigit() for c in descr_lower)) or
+                # Dell-style: "Slot: 0 Port: X ..." (already using descr_lower)
+                (descr_lower.startswith("slot:") and "port:" in descr_lower)
             )
 
             if not is_likely_physical:
@@ -233,16 +232,24 @@ async def discover_physical_ports(
             except (ValueError, TypeError):
                 if_type = 0
 
-            is_sfp_by_type = if_type in (56, 117, 161, 171, 172)  # ethernetCsmacd=6 is copper
-            is_sfp_by_name = any(k in descr_lower for k in ["sfp", "fiber", "optical", "1000base-x", "10gbase", "10g", "mini-gbic", "sfp+", "sfp28"])
+            # ifType values: 6=ethernetCsmacd (copper), 56=fibreChannel, 117=gigabitEthernet, 161/171/172=various fiber
+            is_sfp_by_type = if_type in (56, 117, 161, 171, 172)
+            
+            # Check for SFP indicators in name (using descr_lower for case-insensitive matching)
+            is_sfp_by_name = any(k in descr_lower for k in [
+                "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase", "10g", 
+                "mini-gbic", "sfp+", "sfp28"
+            ])
+            
             is_sfp = is_sfp_by_type or is_sfp_by_name
             is_copper = not is_sfp
 
-            # === STEP 4: Friendly name ===
+            # === STEP 4: Friendly name generation ===
+            # Use descr_lower for matching, but descr_clean for display to preserve original case
             if "slot:" in descr_lower and "port:" in descr_lower:
                 # Extract port number from "Slot: 0 Port: 25 ..."
                 import re
-                match = re.search(r"port:\s*(\d+)", descr_lower, re.I)
+                match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
                 if match:
                     name = f"Port {match.group(1)}"
                 else:
@@ -250,8 +257,10 @@ async def discover_physical_ports(
             elif descr_clean.isdigit():
                 name = f"Port {descr_clean}"
             elif "port " in descr_lower:
+                # Preserve original case from descr_clean
                 name = descr_clean
             elif descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
+                # Preserve original case from descr_clean
                 name = descr_clean
             else:
                 name = f"Port {logical_port}"
@@ -259,7 +268,7 @@ async def discover_physical_ports(
             mapping[logical_port] = {
                 "if_index": if_index,
                 "name": name,
-                "if_descr": descr_clean,
+                "if_descr": descr_clean,  # Always use original case for storage
                 "is_sfp": is_sfp,
                 "is_copper": is_copper,
             }
@@ -275,7 +284,7 @@ async def discover_physical_ports(
 
     except asyncio.CancelledError:
         raise
-     # ruff: noqa: BLE001
+    # ruff: noqa: BLE001
     except Exception as exc:
         _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
