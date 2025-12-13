@@ -15,6 +15,8 @@ from pysnmp.hlapi.v3arch.asyncio import (
     get_cmd,
     walk_cmd,
 )
+#multiple switchs hubs create multiple engines which does not seem to go so great
+_SNMP_Engine = SnmpEngine() # only create 1 as test
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class AsyncSnmpHelper:
         self.host = host
         self.community = community
         self.mp_model = mp_model
-        self.engine: SnmpEngine | None = None
+        self.engine = None
         self._init_lock = asyncio.Lock()  # Prevent race conditions
 
     async def initialize(self):
@@ -39,10 +41,7 @@ class AsyncSnmpHelper:
             if self.engine is not None:
                 return  # Already initialized
             
-            def _create_engine():
-                return SnmpEngine()
-
-            self.engine =  _create_engine() # await self.hass.async_add_executor_job(_create_engine)
+            self.engine =  _SNMP_Engine # await self.hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
