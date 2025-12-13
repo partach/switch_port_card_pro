@@ -106,7 +106,7 @@ class AsyncSnmpHelper:
         transport = None
         if not self.engine:
             _LOGGER.debug("calling SNMPWalk before engine is available for %s", self.host)
-           await self.initialize()
+            await self.initialize()
         try:
             # Create and configure transport
             transport = await UdpTransportTarget.create((self.host, 161))
