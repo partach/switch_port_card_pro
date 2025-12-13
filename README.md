@@ -16,7 +16,7 @@ This Home Assistant integration (Card installed separately, see below) shows the
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20card%20visual.png" width="600"/>
   <br>
-  <em>Live port status per switch with color coding (can be configured in several ways)
+  <em>Live port status per switch with color coding (can be configured in several ways)</em>
 </p>
 
 **IMPORTANT**: SNMP requires the right base-oid's for getting the required data.
@@ -110,7 +110,7 @@ For the 'port oid's' the integration will walk these oid's (meaning the sw puts 
 | Port # | Entity ID Example                          | Attribute        | Description                          | SNMP OID (or note)                  |
 |-------|---------------------------------------------|------------------------|--------------------------------------|-------------------------------------|
 | –     | `sensor.switch_192_168_1_1_total_bandwidth` | `state`                | Total switch bandwidth (Mbps)        | Custom aggregate (SW calculates)     |
-| –     | `sensor.switch_192_168_1_1_system_cpu`      | `state`                | CPU usage (%)                        | `1.3.6.1.4.1.890.1.15.3.2.4.0`  |
+| –     | `sensor.switch_192_168_1_1_system_cpu`      | `state`                | CPU usage (%)                        | `1.3.6.1.4.1.890.1.15.3.2.8.0`  |
 | –     | `sensor.switch_192_168_1_1_system_memory`   | `state`                | Memory usage (%)                     | `1.3.6.1.4.1.890.1.15.3.2.5.0`  |
 | –     | `sensor.switch_192_168_1_1_firmware`     | `state`                | Firmware text                     | `1.3.6.1.4.1.890.1.15.3.1.6.0`  |
 | –     | `sensor.switch_192_168_1_1_hostname`     | `state`                | The vendor name and type                     | `1.3.6.1.2.1.1.5.0`  |
