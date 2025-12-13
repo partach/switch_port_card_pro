@@ -1,6 +1,7 @@
 """Async SNMP helper works perfectly with pysnmp-7)"""
 from __future__ import annotations
 import logging
+import re
 import asyncio
 from typing import Literal, Dict, Any
 
