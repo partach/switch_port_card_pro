@@ -173,7 +173,11 @@ async def discover_physical_ports(
     """
     Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
     Works on: Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, MikroTik, Netgear, D-Link, etc.
+    
+    Note: Requires 're' module to be imported at the top of the file.
     """
+    import re  # Import here if not already imported at module level
+    
     mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
 
@@ -205,13 +209,20 @@ async def discover_physical_ports(
             if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
                 continue
             
-            # Single-word patterns - use word boundary matching to avoid "lo" matching "Slot"
-            # Note: "vlan" uses \b at start only to match "vlan1", "vlan300", etc.
-            single_word_bad = [r'\blo\b', r'\bbr\b', r'\bvlan', r'\btun\b', r'\bdummy\b', 
-                              r'\bwlan\b', r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b', 
-                              r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b', 
-                              r'\bgre\b', r'\bsit\b', r'\bipip\b']
-            if any(re.search(pattern, descr_lower) for pattern in single_word_bad):
+            # Patterns that should match at word start (to catch gre0, tun0, vlan1, etc.)
+            # \b at start ensures we don't match "something_gre0"
+            word_start_bad = [r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb', 
+                             r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl', 
+                             r'\bip6gre', r'\bwds']
+            if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
+                continue
+            
+            # Patterns that need exact word match (complete words only)
+            exact_word_bad = [r'\blo\b', r'\bbr\b', r'\bdummy\b', r'\bwlan\b', 
+                             r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b', 
+                             r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b', 
+                             r'\bsit\b', r'\bipip\b', r'\bbcmsw\b', r'\bspu\b']
+            if any(re.search(pattern, descr_lower) for pattern in exact_word_bad):
                 continue
 
             # === STEP 2: Accept ANYTHING that looks like a real port ===
