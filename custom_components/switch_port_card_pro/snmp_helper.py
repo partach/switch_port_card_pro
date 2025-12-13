@@ -16,7 +16,9 @@ from pysnmp.hlapi.v3arch.asyncio import (
     walk_cmd,
 )
 #multiple switchs hubs create multiple engines which does not seem to go so great
-#_SNMP_Engine = SnmpEngine() # only create 1 as test
+# New global variables for the singleton pattern
+_GLOBAL_SNMP_ENGINE: SnmpEngine | None = None
+_GLOBAL_INIT_LOCK = asyncio.Lock()
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,19 +34,20 @@ class AsyncSnmpHelper:
         self.host = host
         self.community = community
         self.mp_model = mp_model
-        self.engine = None
-        self._init_lock = asyncio.Lock()  # Prevent race conditions
 
     async def initialize(self):
-        """Create the SNMP engine in a thread-safe way."""
-        async with self._init_lock:
-            if self.engine is not None:
+        global _GLOBAL_SNMP_ENGINE
+        async with _GLOBAL_INIT_LOCK:
+            if _GLOBAL_SNMP_ENGINE is not None:
                 _LOGGER.debug("SNMP engine already created for %s", self.host)
                 return  # Already initialized
+            
             def _create_engine():
-                # This function will run safely in the executor (a separate thread)
-                return SnmpEngine()            
-            self.engine = await self.hass.async_add_executor_job(_create_engine)
+                # SnmpEngine instantiation must run in the executor
+                return SnmpEngine()
+
+            # Create the engine in the executor and store it globally
+            _GLOBAL_SNMP_ENGINE = await self.hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
@@ -54,10 +57,12 @@ class AsyncSnmpHelper:
         retries: int = 3,
     ) -> str | None:
         """Ultra-reliable async SNMP GET."""
-        transport = None
-        if not self.engine:
+        global _GLOBAL_SNMP_ENGINE
+        # Check the global engine state
+        if _GLOBAL_SNMP_ENGINE is None:
             _LOGGER.debug("calling SNMPGet before engine is available for %s", self.host)
             await self.initialize()
+        transport = None
         try:
             transport = await UdpTransportTarget.create((self.host, 161))
             transport.timeout = timeout
@@ -102,11 +107,13 @@ class AsyncSnmpHelper:
         Async SNMP WALK using the high-level walkCmd.
         Returns {full_oid: value} for all OIDs under base_oid.
         """
+        global _GLOBAL_SNMP_ENGINE
+        # Check the global engine state
+        if _GLOBAL_SNMP_ENGINE is None:
+            _LOGGER.debug("calling SNMPGet before engine is available for %s", self.host)
+            await self.initialize()
         results: dict[str, str] = {}
         transport = None
-        if not self.engine:
-            _LOGGER.debug("calling SNMPWalk before engine is available for %s", self.host)
-            await self.initialize()
         try:
             # Create and configure transport
             transport = await UdpTransportTarget.create((self.host, 161))
