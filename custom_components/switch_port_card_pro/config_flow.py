@@ -14,7 +14,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 from homeassistant.core import callback
 
-from .snmp_helper import async_snmp_get 
+from .snmp_helper import AsyncSnmpHelper
 from .const import (
     DOMAIN,
     CONF_COMMUNITY,
@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
     CONF_SFP_PORTS_START,
+    SNMP_VERSION_TO_MP_MODEL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,15 +107,13 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
       """SNMP connectivity test direct await, no executor nonsense."""
-      await async_snmp_get(
-        hass,
-        host,
-        community,
-        "1.3.6.1.2.1.1.5.0",   # sysName — more reliable than sysDescr
-        timeout=12,
-        retries=3,
-        mp_model=1,            # v2c
-      )
+        snmp = AsyncSnmpHelper(
+            hass=hass,
+            host=host,
+            community=community,
+            mp_model=SNMP_VERSION_TO_MP_MODEL.get("v2c", 1),
+        )
+        await snmp.async_snmp_get("1.3.6.1.2.1.1.5.0")
 
     @staticmethod
     @callback
