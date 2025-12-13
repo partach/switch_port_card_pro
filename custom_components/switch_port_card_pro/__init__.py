@@ -38,8 +38,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
 
     all_is_ok = True
-    hass.data[DOMAIN].pop(entry.entry_id, None)
+    # Just ensure the domain data structure exists
+    hass.data.setdefault(DOMAIN, {})
+"""    
     
+    hass.data[DOMAIN].pop(entry.entry_id, None)
     host = entry.data[CONF_HOST]
     update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
@@ -75,13 +78,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Store coordinator
     hass.data[DOMAIN][entry.entry_id] = coordinator
-
     # First refresh
     try:
       await coordinator.async_config_entry_first_refresh()
     except asyncio.CancelledError:
         all_is_ok = False
         _LOGGER.debug("refresh cancelled")
+"""
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
