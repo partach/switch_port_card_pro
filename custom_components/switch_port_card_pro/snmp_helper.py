@@ -16,7 +16,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
     walk_cmd,
 )
 #multiple switchs hubs create multiple engines which does not seem to go so great
-_SNMP_Engine = SnmpEngine() # only create 1 as test
+#_SNMP_Engine = SnmpEngine() # only create 1 as test
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,10 +38,11 @@ class AsyncSnmpHelper:
     async def initialize(self):
         """Create the SNMP engine in a thread-safe way."""
         async with self._init_lock:
-            if self.engine is not None:
+           if self.engine is not None:
+                _LOGGER.debug("SNMP engine already created for %s", self.host)
                 return  # Already initialized
             
-            self.engine =  _SNMP_Engine # await self.hass.async_add_executor_job(_create_engine)
+            self.engine = await self.hass.async_add_executor_job(SnmpEngine())
             _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
@@ -53,6 +54,7 @@ class AsyncSnmpHelper:
         """Ultra-reliable async SNMP GET."""
         transport = None
         if not self.engine:
+            _LOGGER.debug("calling SNMPGet before engine is available for %s", self.host)
             await self.initialize()
         try:
             transport = await UdpTransportTarget.create((self.host, 161))
@@ -69,7 +71,7 @@ class AsyncSnmpHelper:
     
             if error_indication:
                 if "timeout" in str(error_indication).lower():
-                    _LOGGER.debug("SNMP GET timeout: %s (oid=%s)", self.host, oid)
+                    _LOGGER.debug("SNMP GET timeout: %s (oid=%s) c:%s m:%d", self.host, oid, self.community, self.mp_model)
                 else:
                     _LOGGER.debug("SNMP GET error indication: %s", error_indication)
                 return None
@@ -101,6 +103,7 @@ class AsyncSnmpHelper:
         results: dict[str, str] = {}
         transport = None
         if not self.engine:
+            _LOGGER.debug("calling SNMPWalk before engine is available for %s", self.host)
            await self.initialize()
         try:
             # Create and configure transport
@@ -122,7 +125,7 @@ class AsyncSnmpHelper:
     
             async for error_indication, error_status, error_index, var_binds in iterator:
                 if error_indication:
-                    _LOGGER.debug("SNMP WALK error: %s", error_indication)
+                    _LOGGER.debug("SNMP WALK error: %s (host: %s c:%s m:%d)", error_indication, self.host, self.community, self.mp_model)
                     break
                 
                 if error_status:
