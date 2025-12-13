@@ -166,7 +166,6 @@ async def discover_physical_ports(
     
     Note: Requires 're' module to be imported at the top of the file.
     """
-    import re  # Import here if not already imported at module level
     
     mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
@@ -265,7 +264,6 @@ async def discover_physical_ports(
             # Use descr_lower for matching, but descr_clean for display to preserve original case
             if "slot:" in descr_lower and "port:" in descr_lower:
                 # Extract port number from "Slot: 0 Port: 25 ..."
-                import re
                 match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
                 if match:
                     name = f"Port {match.group(1)}"
