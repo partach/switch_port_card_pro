@@ -205,7 +205,8 @@ async def discover_physical_ports(
                 continue
             
             # Single-word patterns - use word boundary matching to avoid "lo" matching "Slot"
-            single_word_bad = [r'\blo\b', r'\bbr\b', r'\bvlan\b', r'\btun\b', r'\bdummy\b', 
+            # Note: "vlan" uses \b at start only to match "vlan1", "vlan300", etc.
+            single_word_bad = [r'\blo\b', r'\bbr\b', r'\bvlan', r'\btun\b', r'\bdummy\b', 
                               r'\bwlan\b', r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b', 
                               r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b', 
                               r'\bgre\b', r'\bsit\b', r'\bipip\b']
