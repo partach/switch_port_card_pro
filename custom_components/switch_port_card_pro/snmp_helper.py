@@ -226,7 +226,7 @@ async def discover_physical_ports(
                 # Just a number → very common (case-insensitive since digits have no case)
                 descr_clean.isdigit() or
                 # Starts with "p" or "g" + digit (now using descr_lower consistently)
-                (descr_lower and descr_lower[0] in "pg" and any(c.isdigit() for c in descr_lower)) or
+                re.match(r'^[pg]\d+', descr_lower) or
                 # Dell-style: "Slot: 0 Port: X ..." (already using descr_lower)
                 (descr_lower.startswith("slot:") and "port:" in descr_lower)
             )
@@ -241,16 +241,24 @@ async def discover_physical_ports(
             except (ValueError, TypeError):
                 if_type = 0
 
-            # ifType values: 6=ethernetCsmacd (copper), 56=fibreChannel, 117=gigabitEthernet, 161/171/172=various fiber
-            is_sfp_by_type = if_type in (56, 117, 161, 171, 172)
+            # ifType values: 6=ethernetCsmacd (copper), 56=fibreChannel, 161/171/172=various fiber
+            is_sfp_by_type = if_type in (56, 161, 171, 172)
             
             # Check for SFP indicators in name (using descr_lower for case-insensitive matching)
             is_sfp_by_name = any(k in descr_lower for k in [
                 "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase", "10g", 
                 "mini-gbic", "sfp+", "sfp28"
             ])
-            
-            is_sfp = is_sfp_by_type or is_sfp_by_name
+            detection = "heuristic"
+            if is_sfp_by_name:
+                is_sfp = True
+                detection = "name"
+            elif is_sfp_by_type:
+                is_sfp = True
+                detection = "type"
+            else:
+                is_sfp = False
+                detection = "heuristic"
             is_copper = not is_sfp
 
             # === STEP 4: Friendly name generation ===
@@ -280,6 +288,7 @@ async def discover_physical_ports(
                 "if_descr": descr_clean,  # Always use original case for storage
                 "is_sfp": is_sfp,
                 "is_copper": is_copper,
+                "detection": detection,
             }
             logical_port += 1
 
