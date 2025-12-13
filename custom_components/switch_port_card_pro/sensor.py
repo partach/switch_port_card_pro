@@ -38,8 +38,11 @@ from .const import (
     DOMAIN,
     SNMP_VERSION_TO_MP_MODEL,
 )
-from .snmp_helper import AsyncSnmpHelper
-
+from .snmp_helper import (
+    async_snmp_walk,
+    async_snmp_bulk,
+    discover_physical_ports,
+)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -63,7 +66,6 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         snmp_version: str,
         include_vlans: bool,
         update_seconds: int,
-        snmp: AsyncSnmpHelper,
     ) -> None:
         super().__init__(
             hass,
@@ -81,11 +83,13 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.port_mapping = {}
         self.update_seconds = update_seconds
         self._last_total_bytes = 0
-        self.snmp = snmp
+
     async def _async_update_data(self) -> SwitchPortData:
         try:
             if not self.port_mapping:
-                detected = await self.snmp.discover_physical_ports()
+                detected = await discover_physical_ports(
+                    self.hass, self.host, self.community, mp_model=self.mp_model
+                )
                 self.port_mapping = detected or {
                     p: {"if_index": p, "name": f"Port {p}", "is_sfp": False, "is_copper": True}
                     for p in self.ports
@@ -96,7 +100,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 oids_to_walk.append("vlan")
 
             tasks = [
-                self.snmp.async_snmp_walk(self.base_oids[k])
+                async_snmp_walk(self.hass, self.host, self.community, self.base_oids[k], mp_model=self.mp_model)
                 for k in oids_to_walk if self.base_oids.get(k)
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -192,8 +196,12 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             # store for next run
             self._last_total_bytes = current_total_bytes
             # === SYSTEM OIDs ===
-            raw_system = await self.snmp.async_snmp_bulk(
-                [oid for oid in self.system_oids.values() if oid]
+            raw_system = await async_snmp_bulk(
+                self.hass,
+                self.host,
+                self.community,
+                [oid for oid in self.system_oids.values() if oid],
+                mp_model=self.mp_model,
             )
 
             def get(oid_key: str) -> str | None:
@@ -586,13 +594,7 @@ async def async_setup_entry(
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
-    snmp = AsyncSnmpHelper(
-        hass=hass,
-        host=host,
-        community=community,
-        mp_model=mp_model,
-    )
-    detected = await snmp.discover_physical_ports()
+    detected = await discover_physical_ports(hass, host, community, mp_model)
     
     if detected:
         # Always work with clean, sorted integers
@@ -659,7 +661,7 @@ async def async_setup_entry(
     }
 
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds, snmp=snmp,
+        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
    
     coordinator.device_name = entry.title
