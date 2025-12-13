@@ -33,14 +33,19 @@ class AsyncSnmpHelper:
         self.community = community
         self.mp_model = mp_model
         self.engine: SnmpEngine | None = None
+        self._init_lock = asyncio.Lock()  # Prevent race conditions
 
     async def initialize(self):
         """Create the SNMP engine in a thread-safe way."""
-        def _create_engine():
-            return SnmpEngine()
+        async with self._init_lock:
+            if self.engine is not None:
+                return  # Already initialized
+            
+            def _create_engine():
+                return SnmpEngine()
 
-        self.engine = await self.hass.async_add_executor_job(_create_engine)
-        _LOGGER.debug("SNMP engine created for %s", self.host)
+            self.engine = await self.hass.async_add_executor_job(_create_engine)
+            _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
         self,
@@ -107,8 +112,6 @@ class AsyncSnmpHelper:
             transport.retries = retries
     
             # Use walk_cmd for the operation
-            # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
-            # But in v3arch.asyncio it returns an async iterator yielding these tuples
             obj_identity = ObjectIdentity(base_oid)
             iterator = walk_cmd(
                 self.engine,
@@ -132,7 +135,7 @@ class AsyncSnmpHelper:
                 for var_bind in var_binds:
                     oid, value = var_bind
                     oid_str = str(oid)
-                    # Double-check we are still in the tree (walkCmd handles this but good for safety)
+                    # Double-check we are still in the tree
                     if not oid_str.startswith(base_oid):
                         return results
                     results[oid_str] = value.prettyPrint()
@@ -169,8 +172,6 @@ class AsyncSnmpHelper:
         """
         Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
         Works on: Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, MikroTik, Netgear, D-Link, etc.
-        
-        Note: Requires 're' module to be imported at the top of the file.
         """
         
         mapping: dict[int, dict[str, Any]] = {}
@@ -218,7 +219,6 @@ class AsyncSnmpHelper:
                     continue
     
                 # === STEP 2: Accept ANYTHING that looks like a real port ===
-                # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
                 is_likely_physical = (
                     # Standard keywords (all lowercase since we're checking descr_lower)
                     any(k in descr_lower for k in [
