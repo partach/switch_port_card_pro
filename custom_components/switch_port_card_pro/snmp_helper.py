@@ -33,7 +33,7 @@ async def async_snmp_get(
     oid: str,
     timeout: int = 10,
     retries: int = 3,
-    mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
+    mp_model: int = 1,
 ) -> str | None:
     """Ultra-reliable async SNMP GET."""
     transport = None
@@ -44,7 +44,7 @@ async def async_snmp_get(
         obj_identity = ObjectIdentity(oid)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
-            CommunityData(community, mp_model),
+            CommunityData(community, mp_model=mp_model),
             transport,
             ContextData(),
             ObjectType(obj_identity),
@@ -78,7 +78,7 @@ async def async_snmp_walk(
     base_oid: str,
     timeout: int = 10,
     retries: int = 3,
-    mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
+    mp_model: int = 1,
 ) -> dict[str, str]:
     """
     Async SNMP WALK using the high-level walkCmd.
@@ -99,7 +99,7 @@ async def async_snmp_walk(
         obj_identity = ObjectIdentity(base_oid)
         iterator = walk_cmd(
             _SNMP_ENGINE,
-            CommunityData(community, mp_model),
+            CommunityData(community, mp_model=mp_model),
             transport,
             ContextData(),
             ObjectType(obj_identity),
@@ -139,7 +139,7 @@ async def async_snmp_bulk(
     oid_list: list[str],
     timeout: int = 8,
     retries: int = 2,
-    mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
+    mp_model: int = 1,
 ) -> Dict[str, str | None]:
     """Fast parallel GET for system OIDs."""
     if not oid_list:
@@ -158,7 +158,7 @@ async def discover_physical_ports(
     hass,
     host: str,
     community: str,
-    mp_model: int = SNMP_VERSION_TO_MP_MODEL["v2c"],
+    mp_model: int = 1,
 ) -> dict[int, dict[str, Any]]:
     """
     Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
@@ -173,7 +173,7 @@ async def discover_physical_ports(
     try:
         # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model
+            hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model = mp_model
         )
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
@@ -181,7 +181,7 @@ async def discover_physical_ports(
 
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model
+            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model = mp_model
         )
 
         for oid_str, descr_raw in descr_data.items():
