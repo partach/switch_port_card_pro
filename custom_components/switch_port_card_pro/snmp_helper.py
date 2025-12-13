@@ -44,7 +44,7 @@ async def async_snmp_get(
         obj_identity = ObjectIdentity(oid)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             _SNMP_ENGINE,
-            CommunityData(community, mp_model=mp_model),
+            CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
             ObjectType(obj_identity),
@@ -99,7 +99,7 @@ async def async_snmp_walk(
         obj_identity = ObjectIdentity(base_oid)
         iterator = walk_cmd(
             _SNMP_ENGINE,
-            CommunityData(community, mp_model=mp_model),
+            CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
             ObjectType(obj_identity),
@@ -148,7 +148,7 @@ async def async_snmp_bulk(
     async def _get_one(oid: str):
         return await async_snmp_get(
             hass, host, community, oid,
-            timeout=timeout, retries=retries, mp_model=mp_model
+            timeout=timeout, retries=retries, mpModel=mp_model
         )
 
     results = await asyncio.gather(*[_get_one(oid) for oid in oid_list])
@@ -173,7 +173,7 @@ async def discover_physical_ports(
     try:
         # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model = mp_model
+            hass, host, community, "1.3.6.1.2.1.2.2.1.2", mpModel = mp_model
         )
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
@@ -181,7 +181,7 @@ async def discover_physical_ports(
 
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model = mp_model
+            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mpModel = mp_model
         )
 
         for oid_str, descr_raw in descr_data.items():
