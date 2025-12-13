@@ -16,8 +16,6 @@ from pysnmp.hlapi.v3arch.asyncio import (
     walk_cmd,
 )
 
-asyncio.get_event_loop().set_debug(False)
-
 _LOGGER = logging.getLogger(__name__)
 
 class AsyncSnmpHelper:
@@ -44,7 +42,7 @@ class AsyncSnmpHelper:
             def _create_engine():
                 return SnmpEngine()
 
-            self.engine = await self.hass.async_add_executor_job(_create_engine)
+            self.engine =  _create_engine() # await self.hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
