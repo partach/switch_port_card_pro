@@ -38,7 +38,7 @@ class AsyncSnmpHelper:
     async def initialize(self):
         """Create the SNMP engine in a thread-safe way."""
         async with self._init_lock:
-           if self.engine is not None:
+            if self.engine is not None:
                 _LOGGER.debug("SNMP engine already created for %s", self.host)
                 return  # Already initialized
             
