@@ -43,6 +43,7 @@ class AsyncSnmpHelper:
                 return  # Already initialized
             
             def _create_engine():
+                _LOGGER.debug("creating SNMP engine for %s", self.host)
                 # SnmpEngine instantiation must run in the executor
                 return SnmpEngine()
 
@@ -53,8 +54,8 @@ class AsyncSnmpHelper:
     async def async_snmp_get(
         self,
         oid: str,
-        timeout: int = 10,
-        retries: int = 3,
+        timeout: int = 8,
+        retries: int = 0,
     ) -> str | None:
         """Ultra-reliable async SNMP GET."""
         global _GLOBAL_SNMP_ENGINE
@@ -101,7 +102,7 @@ class AsyncSnmpHelper:
         self,
         base_oid: str,
         timeout: int = 10,
-        retries: int = 3,
+        retries: int = 0,
     ) -> dict[str, str]:
         """
         Async SNMP WALK using the high-level walkCmd.
@@ -161,9 +162,14 @@ class AsyncSnmpHelper:
         self,
         oid_list: list[str],
         timeout: int = 8,
-        retries: int = 2,
+        retries: int = 0,
     ) -> Dict[str, str | None]:
         """Fast parallel GET for system OIDs."""
+        global _GLOBAL_SNMP_ENGINE
+        # Check the global engine state
+        if _GLOBAL_SNMP_ENGINE is None:
+            _LOGGER.debug("calling async_snmp_bulk before engine is available for %s", self.host)
+            await self.initialize()
         if not oid_list:
             return {}
     
@@ -182,7 +188,11 @@ class AsyncSnmpHelper:
         Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
         Works on: Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, MikroTik, Netgear, D-Link, etc.
         """
-        
+        global _GLOBAL_SNMP_ENGINE
+        # Check the global engine state
+        if _GLOBAL_SNMP_ENGINE is None:
+            _LOGGER.debug("calling discover_physical_ports before engine is available for %s", self.host)
+            await self.initialize()        
         mapping: dict[int, dict[str, Any]] = {}
         logical_port = 1
     
