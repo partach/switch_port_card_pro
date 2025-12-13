@@ -19,11 +19,9 @@ from .const import (
     DOMAIN,
     CONF_COMMUNITY,
     CONF_PORTS,
-    CONF_INCLUDE_VLANS,
     DEFAULT_PORTS,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
-    CONF_SFP_PORTS_START,
     SNMP_VERSION_TO_MP_MODEL,
 )
 
@@ -106,14 +104,16 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
-      """SNMP connectivity test direct await, no executor nonsense."""
+        """SNMP connectivity test direct await, no executor nonsense."""
         snmp = AsyncSnmpHelper(
             hass=hass,
             host=host,
             community=community,
-            mp_model=SNMP_VERSION_TO_MP_MODEL.get("v2c", 1),
+            mp_model=1,
         )
-        await snmp.async_snmp_get("1.3.6.1.2.1.1.5.0")
+        value = await snmp.async_snmp_get("1.3.6.1.2.1.1.5.0")
+        if value is None:
+          raise ValueError("Invalid SNMP credentials or no response")
 
     @staticmethod
     @callback
@@ -145,18 +145,27 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
             # Convert port strings (from multi-select) to integers for saving
             if CONF_PORTS in user_input and isinstance(user_input[CONF_PORTS], list):
                 user_input[CONF_PORTS] = [int(p) for p in user_input[CONF_PORTS]]
-            
-
+        
             try:
                 new = {**current, **user_input}
+        
+                # Reload integration if SNMP version changed
+                if user_input.get("snmp_version") != current.get("snmp_version"):
+                    await self.hass.config_entries.async_reload(
+                        self.config_entry.entry_id
+                    )
+        
                 return self.async_create_entry(title="", data=new)
-             #   return self.async_create_entry(title="", data=user_input)
             except Exception as err:
                 _LOGGER.exception("Error saving options: %s", err)
                 return self.async_abort(reason="Error storing input")            
 
         # Prepare for schema generation
-        ports_dict = {str(i): str(i) for i in range(1, 65)}
+        detected_ports = self.config_entry.options.get(CONF_PORTS)
+        if detected_ports:
+            ports_dict = {str(p): str(p) for p in detected_ports}
+        else:
+            ports_dict = {str(i): str(i) for i in range(1, 65)}
         current_ports = [str(p) for p in current.get(CONF_PORTS, DEFAULT_PORTS)]
 
         # --- Options Schema ---
