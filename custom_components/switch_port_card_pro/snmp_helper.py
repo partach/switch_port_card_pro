@@ -199,11 +199,17 @@ async def discover_physical_ports(
                 continue
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
-            if any(bad in descr_lower for bad in [
-                "lo", "br", "vlan", "tun", "dummy", "wlan", "ath", "wifi", "wl",
-                "bond", "veth", "bridge", "virtual", "null", "gre", "sit", "ipip",
-                "cpu interface", "link aggregate"
-            ]):
+            # FIXED: Use word boundaries for single-word patterns to avoid false matches
+            # Multi-word phrases - use substring matching
+            if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
+                continue
+            
+            # Single-word patterns - use word boundary matching to avoid "lo" matching "Slot"
+            single_word_bad = [r'\blo\b', r'\bbr\b', r'\bvlan\b', r'\btun\b', r'\bdummy\b', 
+                              r'\bwlan\b', r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b', 
+                              r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b', 
+                              r'\bgre\b', r'\bsit\b', r'\bipip\b']
+            if any(re.search(pattern, descr_lower) for pattern in single_word_bad):
                 continue
 
             # === STEP 2: Accept ANYTHING that looks like a real port ===
