@@ -41,8 +41,10 @@ class AsyncSnmpHelper:
             if self.engine is not None:
                 _LOGGER.debug("SNMP engine already created for %s", self.host)
                 return  # Already initialized
-            
-            self.engine = await self.hass.async_add_executor_job(SnmpEngine())
+            def _create_engine():
+                # This function will run safely in the executor (a separate thread)
+                return SnmpEngine()            
+            self.engine = await self.hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created for %s", self.host)
 
     async def async_snmp_get(
