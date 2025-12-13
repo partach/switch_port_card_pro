@@ -1,4 +1,7 @@
 # Changelog
+## [0.8.2] - Update on auto port detection mode
+- Netgear 724T auto detect and unifi fixed 
+
 ## [0.8.1] - Card installed separately via HACS
 - Improved auto port detection for unifi after example from users
 - card install via hacs in progress. Already available via custom repositories (partach/switch-port-card-pro-card)
