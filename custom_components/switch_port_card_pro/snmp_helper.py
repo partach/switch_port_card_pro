@@ -69,7 +69,7 @@ class AsyncSnmpHelper:
             transport.retries = retries
             obj_identity = ObjectIdentity(oid)
             error_indication, error_status, error_index, var_binds = await get_cmd(
-                self.engine,
+                _GLOBAL_SNMP_ENGINE,
                 CommunityData(self.community, self.mp_model),
                 transport,
                 ContextData(),
@@ -123,7 +123,7 @@ class AsyncSnmpHelper:
             # Use walk_cmd for the operation
             obj_identity = ObjectIdentity(base_oid)
             iterator = walk_cmd(
-                self.engine,
+                _GLOBAL_SNMP_ENGINE,
                 CommunityData(self.community, self.mp_model),
                 transport,
                 ContextData(),
