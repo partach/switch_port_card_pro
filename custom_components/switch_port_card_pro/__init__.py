@@ -8,6 +8,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
+from .snmp_helper import AsyncSnmpHelper
 import asyncio
 
 from .const import (
@@ -68,9 +69,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "poe_total": entry.options.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
         "custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
     }
+    snmp = AsyncSnmpHelper(
+        hass=hass,
+        host=host,
+        community=community,
+        mp_model=1,
+    )
 
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
+        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds,snmp
     )
 
     # Store coordinator
