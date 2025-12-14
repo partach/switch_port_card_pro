@@ -123,12 +123,14 @@ For the 'port oid's' the integration will walk these oid's (meaning the sw puts 
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `poe_enabled`          | PoE enabled on port                  | `1.3.6.1.4.1.<vendor>.poe.x`       |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `vlan_id`              | Current VLAN (if supported)          | `1.3.6.1.2.1.17.7.1.4.5.1.1`     |
 
+## Discussion 
+See [here](https://github.com/partach/switch_port_card_pro/discussions)
 
 ## Changelog
-See CHANGELOG.md: https://github.com/partach/switch_port_card_pro/blob/main/CHANGELOG.md
+See [CHANGELOG.md](https://github.com/partach/switch_port_card_pro/blob/main/CHANGELOG.md)
 
 ## Issues
-Report at GitHub Issues: https://github.com/partach/switch_port_card_pro/issues
+Report at GitHub [Issues](https://github.com/partach/switch_port_card_pro/issues)
 
 ## support development
 If you want to support this and future developments it would be greatly appreciated :)
