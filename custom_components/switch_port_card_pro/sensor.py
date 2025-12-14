@@ -594,47 +594,52 @@ async def async_setup_entry(
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
-    detected = await discover_physical_ports(hass, host, community, mp_model)
+    install_complete = entry.options.get("install_complete", False)
+    if not install_complete:
+        detected = await discover_physical_ports(hass, host, community, mp_model)
     
-    if detected:
-        # Always work with clean, sorted integers
-        all_ports = sorted(int(p) for p in detected.keys())
-
-        # First-time install? → auto-configure everything
-        if CONF_PORTS not in entry.options:
-            new_options = dict(entry.options)
-
-            # 1. Auto-set total number of ports
-            new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
-
-            # 2. Auto-detect and set SFP start (if any SFP ports exist)
-            sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
-            if sfp_ports:
-                new_options["sfp_ports_start"] = min(sfp_ports)
-
-            hass.config_entries.async_update_entry(entry, options=new_options)
-            _LOGGER.info(
-                "First install: auto-configured %d ports on %s (SFP starts at %s)",
-                         len(all_ports), host, new_options.get("sfp_ports_start", "none"))
-
-            # On first install, use ALL ports
-            ports = all_ports.copy()
-        else:
-            # Not first install → respect user choice
-            user_limit = entry.options.get(CONF_PORTS, [])
-            if isinstance(user_limit, list) and user_limit:
-                max_port = max(user_limit)
-                ports = [p for p in all_ports if p <= max_port]
+        if detected:
+            # Always work with clean, sorted integers
+            all_ports = sorted(int(p) for p in detected.keys())
+    
+            # First-time install? → auto-configure everything
+            if CONF_PORTS not in entry.options:
+                new_options = dict(entry.options)
+    
+                # 1. Auto-set total number of ports
+                new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
+    
+                # 2. Auto-detect and set SFP start (if any SFP ports exist)
+                sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
+                if sfp_ports:
+                    new_options["sfp_ports_start"] = min(sfp_ports)
+    
+                hass.config_entries.async_update_entry(entry, options=new_options)
+                _LOGGER.info(
+                    "First install: auto-configured %d ports on %s (SFP starts at %s)",
+                             len(all_ports), host, new_options.get("sfp_ports_start", "none"))
+    
+                # On first install, use ALL ports
+                ports = all_ports.copy()
             else:
-                ports = all_ports.copy()  # safety fallback
-
-        _LOGGER.info("Using %d ports on %s", len(ports), host)
-
-    else:
-        # Detection completely failed
-        ports = list(range(1, 9))
-        _LOGGER.warning("Port auto-detection failed on %s → falling back to 8 ports", host)
+                # Not first install → respect user choice
+                user_limit = entry.options.get(CONF_PORTS, [])
+                if isinstance(user_limit, list) and user_limit:
+                    max_port = max(user_limit)
+                    ports = [p for p in all_ports if p <= max_port]
+                else:
+                    ports = all_ports.copy()  # safety fallback
     
+            _LOGGER.info("Using %d ports on %s", len(ports), host)
+    
+        else:
+            # Detection completely failed
+            ports = list(range(1, 9))
+            _LOGGER.warning("Port auto-detection failed on %s → falling back to 8 ports", host)
+    else:
+        # Already installed correctly,trust saved config
+        ports = entry.options.get(CONF_PORTS, list(range(1, 9)))
+        _LOGGER.debug("Integration already configured — skipping port discovery on %s", host)   
 
         
     # Build OID sets from options, falling back to const.py defaults
