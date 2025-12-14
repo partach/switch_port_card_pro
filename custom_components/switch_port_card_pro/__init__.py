@@ -111,7 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     coordinator.device_name = entry.title
     coordinator.port_mapping = detected or {}
-    coordinator.config_entry = entry  # For flag check in coordinator
+    coordinator.config_entry = entry
     coordinator.update_interval = timedelta(seconds=update_seconds)
 
 
