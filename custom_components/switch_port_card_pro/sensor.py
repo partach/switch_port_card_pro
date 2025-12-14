@@ -86,18 +86,13 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
-            # Load config entry to check install flag
 
-            install_complete = self.config_entry.options.get("install_complete", False) if self.config_entry else False
-            
-            if not self.port_mapping and not install_complete:
-                detected = await discover_physical_ports(
-                    self.hass, self.host, self.community, mp_model=self.mp_model
-                )
-                self.port_mapping = detected or {
+            if not self.port_mapping:
+                # Fallback if detection somehow failed in __init__
+                self.port_mapping = {
                     p: {"if_index": p, "name": f"Port {p}", "is_sfp": False, "is_copper": True}
                     for p in self.ports
-                }            
+                }   
             # === PORT WALKS ===
             oids_to_walk = ["rx", "tx", "status", "speed", "name", "poe_power", "poe_status","port_custom"]
             if self.include_vlans and self.base_oids.get("vlan"):
