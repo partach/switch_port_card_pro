@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import asyncio
-from typing import Literal, Dict, Any
+from typing import Dict, Any
 
 from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
@@ -18,13 +18,28 @@ from pysnmp.hlapi.v3arch.asyncio import (
 
 from .const import SNMP_VERSION_TO_MP_MODEL
 
-# Create engine with disabled MIB
-# must be blocking an global for now else all hell breaks loose
-_SNMP_ENGINE = SnmpEngine()
-
-asyncio.get_event_loop().set_debug(False)
-
 _LOGGER = logging.getLogger(__name__)
+
+# Global engine and lock for thread-safe initialization
+_SNMP_ENGINE = None
+_ENGINE_LOCK = asyncio.Lock()
+
+
+async def _ensure_engine(hass):
+    """Ensure SNMP engine is created (thread-safe)."""
+    global _SNMP_ENGINE
+    
+    async with _ENGINE_LOCK:
+        if _SNMP_ENGINE is None:
+            # Create engine in executor to avoid blocking
+            def _create_engine():
+                return SnmpEngine()
+            
+            _SNMP_ENGINE = await hass.async_add_executor_job(_create_engine)
+            _LOGGER.debug("SNMP engine created")
+    
+    return _SNMP_ENGINE
+
 
 async def async_snmp_get(
     hass,
@@ -36,14 +51,16 @@ async def async_snmp_get(
     mp_model: int = 1,
 ) -> str | None:
     """Ultra-reliable async SNMP GET."""
+    engine = await _ensure_engine(hass)
     transport = None
+    
     try:
         transport = await UdpTransportTarget.create((host, 161))
         transport.timeout = timeout
         transport.retries = retries
         obj_identity = ObjectIdentity(oid)
         error_indication, error_status, error_index, var_binds = await get_cmd(
-            _SNMP_ENGINE,
+            engine,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
@@ -84,6 +101,7 @@ async def async_snmp_walk(
     Async SNMP WALK using the high-level walkCmd.
     Returns {full_oid: value} for all OIDs under base_oid.
     """
+    engine = await _ensure_engine(hass)
     results: dict[str, str] = {}
     transport = None
 
@@ -94,11 +112,9 @@ async def async_snmp_walk(
         transport.retries = retries
 
         # Use walk_cmd for the operation
-        # Note: walk_cmd returns a list of (errorIndication, errorStatus, errorIndex, varBinds) tuples
-        # But in v3arch.asyncio it returns an async iterator yielding these tuples
         obj_identity = ObjectIdentity(base_oid)
         iterator = walk_cmd(
-            _SNMP_ENGINE,
+            engine,
             CommunityData(community, mpModel=mp_model),
             transport,
             ContextData(),
@@ -119,17 +135,15 @@ async def async_snmp_walk(
             for var_bind in var_binds:
                 oid, value = var_bind
                 oid_str = str(oid)
-                # Double-check we are still in the tree (walkCmd handles this but good for safety)
+                # Double-check we are still in the tree
                 if not oid_str.startswith(base_oid):
                     return results
                 results[oid_str] = value.prettyPrint()
 
     except Exception as exc:
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
-   # too much logging
-   # _LOGGER.debug("SNMP WALK %s -> %d entries", base_oid, len(results))
+    
     return results
-
 
 
 async def async_snmp_bulk(
@@ -154,6 +168,7 @@ async def async_snmp_bulk(
     results = await asyncio.gather(*[_get_one(oid) for oid in oid_list])
     return dict(zip(oid_list, results))
 
+
 async def discover_physical_ports(
     hass,
     host: str,
@@ -163,8 +178,6 @@ async def discover_physical_ports(
     """
     Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
     Works on: Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, MikroTik, Netgear, D-Link, etc.
-    
-    Note: Requires 're' module to be imported at the top of the file.
     """
     
     mapping: dict[int, dict[str, Any]] = {}
@@ -193,20 +206,17 @@ async def discover_physical_ports(
                 continue
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
-            # FIXED: Use word boundaries for single-word patterns to avoid false matches
-            # Multi-word phrases - use substring matching
             if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
                 continue
             
-            # Patterns that should match at word start (to catch gre0, tun0, vlan1, etc.)
-            # \b at start ensures we don't match "something_gre0"
+            # Patterns that should match at word start
             word_start_bad = [r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb', 
                              r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl', 
                              r'\bip6gre', r'\bwds']
             if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
                 continue
             
-            # Patterns that need exact word match (complete words only)
+            # Patterns that need exact word match
             exact_word_bad = [r'\blo\b', r'\bbr\b', r'\bdummy\b', r'\bwlan\b', 
                              r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b', 
                              r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b', 
@@ -215,18 +225,13 @@ async def discover_physical_ports(
                 continue
 
             # === STEP 2: Accept ANYTHING that looks like a real port ===
-            # This is the key fix: Zyxel, D-Link, Netgear often use just "1", "2", "25", etc.
             is_likely_physical = (
-                # Standard keywords (all lowercase since we're checking descr_lower)
                 any(k in descr_lower for k in [
                     "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", 
                     "gigabit", "fasteth", "10g", "slot:", "level"
                 ]) or
-                # Just a number → very common (case-insensitive since digits have no case)
                 descr_clean.isdigit() or
-                # Starts with "p" or "g" + digit (now using descr_lower consistently)
                 re.match(r'^[pg]\d+', descr_lower) or
-                # Dell-style: "Slot: 0 Port: X ..." (already using descr_lower)
                 (descr_lower.startswith("slot:") and "port:" in descr_lower)
             )
 
@@ -240,14 +245,13 @@ async def discover_physical_ports(
             except (ValueError, TypeError):
                 if_type = 0
 
-            # ifType values: 6=ethernetCsmacd (copper), 56=fibreChannel, 161/171/172=various fiber
             is_sfp_by_type = if_type in (56, 161, 171, 172)
             
-            # Check for SFP indicators in name (using descr_lower for case-insensitive matching)
             is_sfp_by_name = any(k in descr_lower for k in [
                 "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase", "10g", 
                 "mini-gbic", "sfp+", "sfp28"
             ])
+            
             detection = "heuristic"
             if is_sfp_by_name:
                 is_sfp = True
@@ -257,13 +261,11 @@ async def discover_physical_ports(
                 detection = "type"
             else:
                 is_sfp = False
-                detection = "heuristic"
+            
             is_copper = not is_sfp
 
             # === STEP 4: Friendly name generation ===
-            # Use descr_lower for matching, but descr_clean for display to preserve original case
             if "slot:" in descr_lower and "port:" in descr_lower:
-                # Extract port number from "Slot: 0 Port: 25 ..."
                 match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
                 if match:
                     name = f"Port {match.group(1)}"
@@ -272,10 +274,8 @@ async def discover_physical_ports(
             elif descr_clean.isdigit():
                 name = f"Port {descr_clean}"
             elif "port " in descr_lower:
-                # Preserve original case from descr_clean
                 name = descr_clean
             elif descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
-                # Preserve original case from descr_clean
                 name = descr_clean
             else:
                 name = f"Port {logical_port}"
@@ -283,7 +283,7 @@ async def discover_physical_ports(
             mapping[logical_port] = {
                 "if_index": if_index,
                 "name": name,
-                "if_descr": descr_clean,  # Always use original case for storage
+                "if_descr": descr_clean,
                 "is_sfp": is_sfp,
                 "is_copper": is_copper,
                 "detection": detection,
@@ -300,7 +300,6 @@ async def discover_physical_ports(
 
     except asyncio.CancelledError:
         raise
-    # ruff: noqa: BLE001
     except Exception as exc:
         _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
