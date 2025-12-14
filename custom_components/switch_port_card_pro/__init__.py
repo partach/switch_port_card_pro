@@ -75,6 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
     coordinator.device_name = entry.title
+    coordinator.config_entry = entry
 
     # Store it for platforms
     hass.data[DOMAIN][entry.entry_id] = coordinator
