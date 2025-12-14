@@ -8,7 +8,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
-import asyncio
+#import asyncio
 
 from .const import (
     DOMAIN,
