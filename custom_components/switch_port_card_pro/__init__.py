@@ -33,7 +33,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
     return True
 
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
     hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -43,8 +42,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     update_seconds = max(3, entry.options.get("update_interval", 20))
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
+    mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
-    # Build OIDs from options (with defaults)
+    # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
+    # Skip full discovery if already installed successfully
+    install_complete = entry.options.get("install_complete", False)
+    detected = None
+    if not install_complete:
+        # First-time: run discovery
+        try:
+            detected = await discover_physical_ports(hass, host, community, mp_model)
+            if detected:
+                all_ports = sorted(int(p) for p in detected.keys())
+
+                new_options = dict(entry.options)
+                new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
+
+                sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
+                if sfp_ports:
+                    new_options["sfp_ports_start"] = min(sfp_ports)
+
+                # Update options (but don't set install_complete here — do at end)
+                hass.config_entries.async_update_entry(entry, options=new_options)
+                _LOGGER.info("First install: auto-configured %d ports on %s (SFP starts at %s)", len(all_ports), host, new_options.get("sfp_ports_start", "none"))
+
+                ports = all_ports.copy()
+            else:
+                ports = list(range(1, 9))
+                _LOGGER.warning("Port auto-detection failed on %s → falling back to 8 ports", host)
+        except Exception as err:
+            ports = list(range(1, 9))
+            _LOGGER.error("Error during port auto-detection: %s", err)
+    else:
+        # Already installed — trust saved config
+        ports = entry.options.get(CONF_PORTS, list(range(1, 9)))
+        _LOGGER.debug("Integration already configured — skipping port discovery on %s", host)
+
+    # Build OID sets
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
         "tx": entry.options.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
@@ -67,40 +101,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "custom": entry.options.get("oid_custom", DEFAULT_BASE_OIDS.get("custom", "")),
     }
 
-    # Get ports from options (auto-detection should be in sensor.py or separate logic)
-    ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
-
     # Create coordinator
     coordinator = SwitchPortCoordinator(
         hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
     coordinator.device_name = entry.title
-    coordinator.config_entry = entry
+    coordinator.port_mapping = detected or {}
+    coordinator.config_entry = entry  # For flag check in coordinator
 
-    # Store it for platforms
+    # Store coordinator
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # === FORWARD TO PLATFORMS FIRST (fast, no blocking) ===
+    # Forward to platforms (fast — no blocking)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # === NOW MARK AS SUCCESSFULLY INSTALLED ===
-    # We reached here → setup succeeded (platforms loaded)
+    # Mark as successfully installed (only if we reached here)
     if not entry.options.get("install_complete", False):
         new_options = dict(entry.options)
         new_options["install_complete"] = True
         hass.config_entries.async_update_entry(entry, options=new_options)
         _LOGGER.info("Switch Port Card Pro integration successfully installed on %s", host)
 
-    # === BACKGROUND FIRST DATA REFRESH (non-blocking) ===
-    # Do NOT await first_refresh here — it can be slow
+    # Background first refresh
     hass.loop.create_task(coordinator.async_refresh())
 
-    # Options listener
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     return True
-
-
+    
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
