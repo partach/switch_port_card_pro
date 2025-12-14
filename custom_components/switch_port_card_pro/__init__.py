@@ -36,20 +36,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
-
-    all_is_ok = True
     hass.data[DOMAIN].pop(entry.entry_id, None)
     
-    # weird thing if i don't do the below here, it wont work at all...
-    # we need al this data to make it work!
-    
     host = entry.data[CONF_HOST]
-    update_seconds = entry.options.get("update_interval", 20)
     community = entry.data[CONF_COMMUNITY]
-    ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
+    update_seconds = max(3, entry.options.get("update_interval", 20))
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
 
+    # Build OIDs from options (with defaults)
     base_oids = {
         "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
         "tx": entry.options.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
@@ -65,37 +60,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     system_oids = {
         "cpu": entry.options.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
         "memory": entry.options.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-        "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
-        "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
-        "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-        "poe_total": entry.options.get("oid_poe_total", DEFAULT_SYSTEM_OIDS.get("poe_total", "")),
-        "custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
+        "firmware": entry.options.get("oid_firmware", DEFAULT_BASE_OIDS.get("firmware", "")),
+        "hostname": entry.options.get("oid_hostname", DEFAULT_BASE_OIDS.get("hostname", "")),
+        "uptime": entry.options.get("oid_uptime", DEFAULT_BASE_OIDS.get("uptime", "")),
+        "poe_total": entry.options.get("oid_poe_total", DEFAULT_BASE_OIDS.get("poe_total", "")),
+        "custom": entry.options.get("oid_custom", DEFAULT_BASE_OIDS.get("custom", "")),
     }
 
+    # Get ports from options (auto-detection should be in sensor.py or separate logic)
+    ports = entry.options.get(CONF_PORTS, DEFAULT_PORTS)
+
+    # Create coordinator
     coordinator = SwitchPortCoordinator(
         hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
     )
+    coordinator.device_name = entry.title
 
-    # Store coordinator
+    # Store it for platforms
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # First refresh
-    try:
-      await coordinator.async_config_entry_first_refresh()
-    except asyncio.CancelledError:
-        all_is_ok = False
-        _LOGGER.debug("refresh cancelled")
+    # === FORWARD TO PLATFORMS FIRST (fast, no blocking) ===
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # === NOW MARK AS SUCCESSFULLY INSTALLED ===
+    # We reached here → setup succeeded (platforms loaded)
+    if not entry.options.get("install_complete", False):
+        new_options = dict(entry.options)
+        new_options["install_complete"] = True
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        _LOGGER.info("Switch Port Card Pro integration successfully installed on %s", host)
+
+    # === BACKGROUND FIRST DATA REFRESH (non-blocking) ===
+    # Do NOT await first_refresh here — it can be slow
+    hass.loop.create_task(coordinator.async_refresh())
+
+    # Options listener
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
-    # Forward to platforms
-    try:
-      await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except asyncio.CancelledError:
-        all_is_ok = False
-        _LOGGER.debug("Entry setups cancelled")
-        
-    return all_is_ok
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
