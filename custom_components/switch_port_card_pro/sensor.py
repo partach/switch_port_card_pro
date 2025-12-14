@@ -595,97 +595,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the platform from config_entry. vlans override always to true"""
-    host = entry.data[CONF_HOST]
-    update_seconds = max(3, int(entry.options.get("update_interval", 20)))
-    community = entry.data[CONF_COMMUNITY]
-    include_vlans = True
-    snmp_version = entry.options.get("snmp_version", "v2c")
-    mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
-
-    # === AUTO-DETECT PORTS + FIRST-INSTALL AUTO-CONFIG ===
-    install_complete = entry.options.get("install_complete", False)
-    if not install_complete:
-        detected = await discover_physical_ports(hass, host, community, mp_model)
-    
-        if detected:
-            # Always work with clean, sorted integers
-            all_ports = sorted(int(p) for p in detected.keys())
-    
-            # First-time install? → auto-configure everything
-            if CONF_PORTS not in entry.options:
-                new_options = dict(entry.options)
-    
-                # 1. Auto-set total number of ports
-                new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
-    
-                # 2. Auto-detect and set SFP start (if any SFP ports exist)
-                sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
-                if sfp_ports:
-                    new_options["sfp_ports_start"] = min(sfp_ports)
-    
-                hass.config_entries.async_update_entry(entry, options=new_options)
-                _LOGGER.info(
-                    "First install: auto-configured %d ports on %s (SFP starts at %s)",
-                             len(all_ports), host, new_options.get("sfp_ports_start", "none"))
-    
-                # On first install, use ALL ports
-                ports = all_ports.copy()
-            else:
-                # Not first install → respect user choice
-                user_limit = entry.options.get(CONF_PORTS, [])
-                if isinstance(user_limit, list) and user_limit:
-                    max_port = max(user_limit)
-                    ports = [p for p in all_ports if p <= max_port]
-                else:
-                    ports = all_ports.copy()  # safety fallback
-    
-            _LOGGER.info("Using %d ports on %s", len(ports), host)
-    
-        else:
-            # Detection completely failed
-            ports = list(range(1, 9))
-            _LOGGER.warning("Port auto-detection failed on %s → falling back to 8 ports", host)
-    else:
-        # Already installed correctly,trust saved config
-        ports = entry.options.get(CONF_PORTS, list(range(1, 9)))
-        _LOGGER.debug("Integration already configured — skipping port discovery on %s", host)   
-
-        
-    # Build OID sets from options, falling back to const.py defaults
-    base_oids = {
-        "rx": entry.options.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
-        "tx": entry.options.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
-        "status": entry.options.get("oid_status", DEFAULT_BASE_OIDS["status"]),
-        "speed": entry.options.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
-        "name": entry.options.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
-        "vlan": entry.options.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
-        "poe_power": entry.options.get("oid_poe_power", DEFAULT_BASE_OIDS.get("poe_power", "")),
-        "poe_status": entry.options.get("oid_poe_status", DEFAULT_BASE_OIDS.get("poe_status", "")),
-        "port_custom": entry.options.get("oid_port_custom", DEFAULT_BASE_OIDS.get("port_custom", "")),
-    }
-
-    # System OIDs must be mapped to their generic keys for the coordinator logic
-    system_oids = {
-        "cpu": entry.options.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
-        "memory": entry.options.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-        "firmware": entry.options.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
-        "hostname": entry.options.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
-        "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-        "custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
-    }
-
-    coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
-    )
-   
-    coordinator.device_name = entry.title
-    coordinator.port_mapping = detected or {}
-    # Store coordinator for card and other platforms to access
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-    coordinator.update_interval = timedelta(seconds=update_seconds)
-    # Force first refresh to populate data immediately
-    await coordinator.async_config_entry_first_refresh()
-
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     # Create entities
     entities = [
         BandwidthSensor(coordinator, entry.entry_id),
@@ -699,7 +609,7 @@ async def async_setup_entry(
     ]
 
     # Per-port status sensors (traffic/speed data lives in attributes)
-    for port in ports:
+    for port in coordinator.ports:
         entities.append(PortStatusSensor(coordinator, entry.entry_id, port))
 
     async_add_entities(entities)
