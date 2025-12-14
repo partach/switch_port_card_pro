@@ -126,8 +126,8 @@ async def async_snmp_walk(
 
     except Exception as exc:
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
-
-    _LOGGER.debug("SNMP WALK %s -> %d entries", base_oid, len(results))
+   # too much logging
+   # _LOGGER.debug("SNMP WALK %s -> %d entries", base_oid, len(results))
     return results
 
 
