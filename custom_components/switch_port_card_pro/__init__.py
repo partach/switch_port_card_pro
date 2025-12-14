@@ -9,6 +9,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
 #import asyncio
+from .snmp_helper import (
+    discover_physical_ports,
+)
 
 from .const import (
     DOMAIN,
@@ -16,7 +19,7 @@ from .const import (
     CONF_COMMUNITY,
     CONF_PORTS,
     CONF_INCLUDE_VLANS,
-    DEFAULT_PORTS,
+    SNMP_VERSION_TO_MP_MODEL,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
 )
