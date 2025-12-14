@@ -87,13 +87,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
     async def _async_update_data(self) -> SwitchPortData:
         try:
             # Load config entry to check install flag
-            entry = None
-            for ent in self.hass.config_entries.async_entries(DOMAIN):
-                if ent.entry_id == self.config_entry_id:  # You'll need to store entry_id in __init__
-                    entry = ent
-                    break
 
-            install_complete = entry.options.get("install_complete", False) if entry else False
+            install_complete = self.config_entry.options.get("install_complete", False) if self.config_entry else False
             
             if not self.port_mapping and not install_complete:
                 detected = await discover_physical_ports(
