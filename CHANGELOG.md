@@ -1,4 +1,7 @@
 # Changelog
+## [0.8.3] - Refactor update
+- refactoring, faster startup on HA restart.
+  
 ## [0.8.2] - Update on auto port detection mode
 - Netgear 724T auto detect and unifi fixed 
 
