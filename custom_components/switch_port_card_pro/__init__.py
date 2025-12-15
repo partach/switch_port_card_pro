@@ -33,8 +33,45 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration (YAML path unused but required)."""
+    """Set up the integration (YAML not used)."""
+
     hass.data.setdefault(DOMAIN, {})
+
+    # ---- FRONTEND STATIC FILE SERVING ----
+    # This exposes:
+    # /switch_port_card_pro/switch-port-card-pro.js
+    frontend_dir = Path(__file__).parent / "frontend"
+    js_file = frontend_dir / "switch-port-card-pro.js"
+
+    if js_file.exists():
+        hass.http.register_static_path(
+            f"/{DOMAIN}",
+            str(frontend_dir),
+            cache_headers=True,
+        )
+        _LOGGER.debug(
+            "Registered frontend static path: /%s/switch-port-card-pro.js",
+            DOMAIN,
+        )
+    else:
+        _LOGGER.warning(
+            "Frontend JS not found at %s",
+            js_file,
+        )
+        return True  # Integration still loads, card just won't exist
+
+    # ---- FRONTEND RESOURCE REGISTRATION ----
+    async def _register_frontend(event=None):
+        frontend.async_add_extra_js_url(
+            hass,
+            f"/{DOMAIN}/switch-port-card-pro.js",
+            es5=False,
+        )
+        _LOGGER.debug("Registered Switch Port Card Pro Lovelace resource")
+
+    # Register after HA startup
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _register_frontend)
+
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
