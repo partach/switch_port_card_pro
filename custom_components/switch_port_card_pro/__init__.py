@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import logging
-
+from pathlib import Path
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_START
 from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
+from homeassistant.components import frontend
 #import asyncio
 from .snmp_helper import (
     discover_physical_ports,
