@@ -191,11 +191,15 @@ async def discover_physical_ports(
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
             return {}
+        else:
+            _LOGGER.debug("ifDescr data from %s with info:\n%s", host, descr_data)
+
 
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
         )
+        _LOGGER.debug("ifIndex data from %s with info:\n%s", host, type_data)
 
         for oid_str, descr_raw in descr_data.items():
             try:
@@ -204,7 +208,6 @@ async def discover_physical_ports(
                 descr_lower = descr_clean.lower()
             except (ValueError, IndexError, AttributeError):
                 continue
-            _LOGGER.debug("ifDescr data from %s with info: %s", host, descr_raw)
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
             if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
@@ -241,7 +244,6 @@ async def discover_physical_ports(
 
             # === STEP 3: SFP vs Copper detection ===
             raw_type = type_data.get(f"1.3.6.1.2.1.2.2.1.3.{if_index}", "0")
-            _LOGGER.debug("ifIndex data from %s with info: %s", host, raw_type)
             try:
                 if_type = int(raw_type)
             except (ValueError, TypeError):
