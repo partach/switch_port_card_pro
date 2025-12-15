@@ -36,38 +36,26 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration (YAML path unused but required)."""
+    """Set up the integration (YAML not used)."""
     hass.data.setdefault(DOMAIN, {})
-    
+
     frontend_dir = Path(__file__).parent / "frontend"
     js_file = frontend_dir / "switch-port-card-pro.js"
 
-    # --- 1. Safely check for file existence using the executor ---
+    # Safely check file existence (thread-safe)
     js_file_exists = await hass.async_add_executor_job(js_file.exists)
 
     if js_file_exists:
-        
-        # 2. Register static path using the correct, modern object type (StaticPathConfig)
-        # Note: The 'path' argument must be converted to a string.
         await hass.http.async_register_static_paths([
-            StaticPathConfig(f"/{DOMAIN}", str(frontend_dir), True),
-        ])
-        
-        # 3. Register the JS module (MUST be wrapped in executor job)
-        async def _register_frontend(event=None):
-            # We are using the general domain path here (e.g., /switch_port_card_pro/switch-port-card-pro.js)
-            await hass.async_add_executor_job(
-                add_extra_js_url,
-                hass,
-                f"/{DOMAIN}/switch-port-card-pro.js",
+            StaticPathConfig(
+                url_path=f"/{DOMAIN}",  # e.g., /switch_port_card_pro
+                path=str(frontend_dir),
+                cache_headers=True,
             )
-            _LOGGER.info("Registered Switch Port Card Pro custom card via manual setup")
-        
-        # Defer resource registration until HA is fully started
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _register_frontend)
-        
+        ])
+        _LOGGER.info("Switch Port Card Pro card served at /%s/switch-port-card-pro.js", DOMAIN)
     else:
-        _LOGGER.warning("Frontend JS not found at %s. Custom card will not be available.", js_file)
+        _LOGGER.warning("Frontend JS not found at %s - card will not be available", js_file)
 
     return True
 
