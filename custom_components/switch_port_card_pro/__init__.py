@@ -6,11 +6,10 @@ from pathlib import Path
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.const import EVENT_HOMEASSISTANT_START
 from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
-from homeassistant.components import frontend
+from homeassistant.components.frontend import add_extra_js_url
 #import asyncio
 from .snmp_helper import (
     discover_physical_ports,
@@ -35,45 +34,26 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration (YAML not used)."""
-
+    """Set up the integration."""
     hass.data.setdefault(DOMAIN, {})
-
-    # ---- FRONTEND STATIC FILE SERVING ----
-    # This exposes:
-    # /switch_port_card_pro/switch-port-card-pro.js
+    
+    # Serve static files
     frontend_dir = Path(__file__).parent / "frontend"
-    js_file = frontend_dir / "switch-port-card-pro.js"
-
-    if js_file.exists():
-        hass.http.register_static_path(
-            f"/{DOMAIN}",
-            str(frontend_dir),
-            cache_headers=True,
-        )
-        _LOGGER.debug(
-            "Registered frontend static path: /%s/switch-port-card-pro.js",
-            DOMAIN,
-        )
-    else:
-        _LOGGER.warning(
-            "Frontend JS not found at %s",
-            js_file,
-        )
-        return True  # Integration still loads, card just won't exist
-
-    # ---- FRONTEND RESOURCE REGISTRATION ----
-    async def _register_frontend(event=None):
-        frontend.async_add_extra_js_url(
-            hass,
-            f"/{DOMAIN}/switch-port-card-pro.js",
-            es5=False,
-        )
-        _LOGGER.debug("Registered Switch Port Card Pro Lovelace resource")
-
-    # Register after HA startup
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _register_frontend)
-
+    
+    if (frontend_dir / "switch-port-card-pro.js").exists():
+        await hass.http.async_register_static_paths([
+            {
+                "url_path": f"/{DOMAIN}",
+                "path": str(frontend_dir),
+                "cache_headers": True,
+            }
+        ])
+        
+        # Register the JS module
+        add_extra_js_url(hass, f"/{DOMAIN}/switch-port-card-pro.js")
+        
+        _LOGGER.info("Registered Switch Port Card Pro frontend resources")
+    
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
