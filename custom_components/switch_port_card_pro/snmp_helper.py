@@ -204,6 +204,7 @@ async def discover_physical_ports(
                 descr_lower = descr_clean.lower()
             except (ValueError, IndexError, AttributeError):
                 continue
+            _LOGGER.debug("ifDescr data from %s with info: %s", host, descr_raw)
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
             if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
@@ -240,6 +241,7 @@ async def discover_physical_ports(
 
             # === STEP 3: SFP vs Copper detection ===
             raw_type = type_data.get(f"1.3.6.1.2.1.2.2.1.3.{if_index}", "0")
+            _LOGGER.debug("ifIndex data from %s with info: %s", host, raw_type)
             try:
                 if_type = int(raw_type)
             except (ValueError, TypeError):
