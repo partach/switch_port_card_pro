@@ -9,6 +9,8 @@ from homeassistant.core import HomeAssistant
 from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
+from homeassistant.const import EVENT_HOMEASSISTANT_START
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.frontend import add_extra_js_url
 #import asyncio
 from .snmp_helper import (
@@ -34,26 +36,39 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration."""
+    """Set up the integration (YAML path unused but required)."""
     hass.data.setdefault(DOMAIN, {})
     
-    # Serve static files
     frontend_dir = Path(__file__).parent / "frontend"
-    
-    if (frontend_dir / "switch-port-card-pro.js").exists():
+    js_file = frontend_dir / "switch-port-card-pro.js"
+
+    # --- 1. Safely check for file existence using the executor ---
+    js_file_exists = await hass.async_add_executor_job(js_file.exists)
+
+    if js_file_exists:
+        
+        # 2. Register static path using the correct, modern object type (StaticPathConfig)
+        # Note: The 'path' argument must be converted to a string.
         await hass.http.async_register_static_paths([
-            {
-                "url_path": f"/{DOMAIN}",
-                "path": str(frontend_dir),
-                "cache_headers": True,
-            }
+            StaticPathConfig(f"/{DOMAIN}", str(frontend_dir), True),
         ])
         
-        # Register the JS module
-        add_extra_js_url(hass, f"/{DOMAIN}/switch-port-card-pro.js")
+        # 3. Register the JS module (MUST be wrapped in executor job)
+        async def _register_frontend(event=None):
+            # We are using the general domain path here (e.g., /switch_port_card_pro/switch-port-card-pro.js)
+            await hass.async_add_executor_job(
+                add_extra_js_url,
+                hass,
+                f"/{DOMAIN}/switch-port-card-pro.js",
+            )
+            _LOGGER.info("Registered Switch Port Card Pro custom card via manual setup")
         
-        _LOGGER.info("Registered Switch Port Card Pro frontend resources")
-    
+        # Defer resource registration until HA is fully started
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _register_frontend)
+        
+    else:
+        _LOGGER.warning("Frontend JS not found at %s. Custom card will not be available.", js_file)
+
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
