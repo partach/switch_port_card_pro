@@ -30,9 +30,6 @@ jobs:
           cp -r custom_components/switch_port_card_pro/* \
                 release/switch_port_card_pro/custom_components/switch_port_card_pro/
 
-          # Copy card
-          cp www/community/switch-port-card-pro/switch-port-card-pro.js \
-                release/switch_port_card_pro/www/community/switch-port-card-pro/
 
           # Create zip from the root folder
           cd release
