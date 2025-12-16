@@ -3,7 +3,7 @@
   "name": "Switch Port Card Pro",
   "codeowners": ["@partach"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["frontend", "http"],
   "documentation": "https://github.com/partach/switch_port_card_pro",
   "integration_type": "hub",
   "iot_class": "local_polling",
