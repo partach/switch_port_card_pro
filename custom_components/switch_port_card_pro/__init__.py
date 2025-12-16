@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
-CARD_URL = "/switch-port-card-pro/switch-port-card-pro.js"
+CARD_URL = "/switch_port_card_pro/switch-port-card-pro.js"
 CARD_JS = "frontend/switch-port-card-pro.js"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
