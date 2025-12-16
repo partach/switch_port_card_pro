@@ -9,9 +9,9 @@ from homeassistant.core import HomeAssistant
 from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
-from homeassistant.const import EVENT_HOMEASSISTANT_START
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components import panel_custom
 #import asyncio
 from .snmp_helper import (
     discover_physical_ports,
