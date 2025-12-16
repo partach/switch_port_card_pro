@@ -35,14 +35,14 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
-CARD_URL = "/frontend/switch-port-card-pro.js"
-CARD_JS = "custom_components/frontend/switch-port-card-pro.js"
+CARD_URL = "/switch-port-card-pro/switch-port-card-pro.js"
+CARD_JS = "frontend/switch-port-card-pro.js"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     try:
-        js_file = Path(__file__).parent / CARD_URL.lstrip("/")
+        js_file = Path(__file__).parent / CARD_JS
 
         # Safely check file existence (thread-safe)
         js_file_exists = await hass.async_add_executor_job(js_file.exists)
@@ -57,15 +57,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
         add_extra_js_url(hass, CARD_URL)
 
-        await panel_custom.async_register_panel(
-            hass=hass,
-            frontend_url_path=CARD_JS,
-            config_panel_domain=DOMAIN,
-            webcomponent_name="switch-port-card-pro",
-            module_url=CARD_URL,
-            embed_iframe=False,
-            require_admin=True,
-        )
     except Exception as err:
         _LOGGER.warning("Frontend registration failed for %s", CARD_JS)
     return True
