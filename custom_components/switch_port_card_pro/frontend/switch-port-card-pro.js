@@ -290,7 +290,7 @@ class SwitchPortCardPro extends HTMLElement {
         }
       </style>
       <ha-card>
-        <div class="header"><span id="title">Switch</span><span id="bandwidth">â€” Mbps</span></div>
+        <div class="header"><span id="title">Switch</span><span id="bandwidth">— Mbps</span></div>
         <div class="gauge" id="gauge"><div class="gauge-fill" id="fill"></div></div>
         <div class="ports-section ${c}">
           <div class="section-label ${this._config.show_port_type_labels ? '' : 'section-hidden'}">COPPER</div>
@@ -307,7 +307,7 @@ class SwitchPortCardPro extends HTMLElement {
   }
 
   _formatLastSeen(seconds) {
-    if (!seconds || seconds <= 0) return "â€”";
+    if (!seconds || seconds <= 0) return "—";
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     if (days > 0) return `${days}d ${hours}h`;
@@ -341,7 +341,7 @@ class SwitchPortCardPro extends HTMLElement {
   }
 
   _formatTime(s) {
-    if (!s) return "â€”";
+    if (!s) return "—";
     const h=Math.floor(s/3600),d=Math.floor(h/24);
     if(d>0)return`${d}d ${h%24}h`;
     if(h>0)return`${h}h ${Math.floor((s%3600)/60)}m`;
@@ -361,7 +361,7 @@ class SwitchPortCardPro extends HTMLElement {
 
     const e = this._entities || {};
     if (Object.keys(e).length===0) {
-      this.shadowRoot.querySelector(".header").innerHTML = `<span style="color:var(--label-badge-red)">No data â€” check integration</span>`;
+      this.shadowRoot.querySelector(".header").innerHTML = `<span style="color:var(--label-badge-red)">No data — check integration</span>`;
       return;
     }
 
@@ -369,7 +369,7 @@ class SwitchPortCardPro extends HTMLElement {
 
     // Header + Bandwidth
     this.shadowRoot.getElementById("title").textContent = this._config.name || (host?.state?.trim()) || "Switch";
-    let bwText = "â€” Mbps";
+    let bwText = "— Mbps";
     if (bw?.state) {
       let val = Number(bw.state);
       const u = (bw.attributes?.unit_of_measurement||"").toLowerCase();
@@ -582,7 +582,7 @@ class SwitchPortCardPro extends HTMLElement {
             else if (mbps >= 0.1) speedClass = "actual-100k";
             else if (mbps > 0.001) speedClass = "actual-1k";
             else speedClass = "actual-off";
-            speedText = mbps >= 1 ? `${mbps.toFixed(1)}M` : mbps >= 0.1 ? `${(mbps*1000).toFixed(0)}K` : "â€”";
+            speedText = mbps >= 1 ? `${mbps.toFixed(1)}M` : mbps >= 0.1 ? `${(mbps*1000).toFixed(0)}K` : "—";
             break;
 
           default:
@@ -610,7 +610,7 @@ class SwitchPortCardPro extends HTMLElement {
         div.style.color = textColor;
         div.style.border = "1px solid rgba(255,255,255,0.15)";
       }
-      const balancedGlyph = '\u2195'; // â†•
+      const balancedGlyph = '\u2195'; // ↕
 
       const portDirectionDisplay = (() => {
         if (!isOn) return "-";
