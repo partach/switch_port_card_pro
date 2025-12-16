@@ -194,7 +194,6 @@ async def discover_physical_ports(
         else:
             _LOGGER.debug("ifDescr data from %s with info:\n%s", host, descr_data)
 
-
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
@@ -203,10 +202,16 @@ async def discover_physical_ports(
 
         for oid_str, descr_raw in descr_data.items():
             try:
+                # Extract ifIndex from the end of the OID
                 if_index = int(oid_str.split(".")[-1])
                 descr_clean = descr_raw.strip()
                 descr_lower = descr_clean.lower()
             except (ValueError, IndexError, AttributeError):
+                continue
+
+            # === NEW FILTER: Reject high-index OIDs (1000+) ===
+            # This automatically handles Cisco virtual/logical interfaces like Po1 or Tunnel
+            if if_index >= 1000:
                 continue
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
@@ -216,7 +221,7 @@ async def discover_physical_ports(
             # Patterns that should match at word start
             word_start_bad = [r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb', 
                              r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl', 
-                             r'\bip6gre', r'\bwds']
+                             r'\bip6gre', r'\bwds', r'\bloopback']
             if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
                 continue
             
@@ -229,10 +234,11 @@ async def discover_physical_ports(
                 continue
 
             # === STEP 2: Accept ANYTHING that looks like a real port ===
+            # Added 'gigabithethernet' for Cisco compatibility
             is_likely_physical = (
                 any(k in descr_lower for k in [
                     "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", 
-                    "gigabit", "fasteth", "10g", "slot:", "level"
+                    "gigabit", "fasteth", "10g", "slot:", "level", "gigabithethernet"
                 ]) or
                 descr_clean.isdigit() or
                 re.match(r'^[pg]\d+', descr_lower) or
@@ -243,9 +249,20 @@ async def discover_physical_ports(
                 continue
 
             # === STEP 3: SFP vs Copper detection ===
-            raw_type = type_data.get(f"1.3.6.1.2.1.2.2.1.3.{if_index}", "0")
+            # Attempt to find the type for this specific index
+            raw_type = "0"
+            for t_oid, t_val in type_data.items():
+                if t_oid.endswith(f".{if_index}"):
+                    raw_type = t_val
+                    break
+            
             try:
-                if_type = int(raw_type)
+                # Handle types if they come back as strings like "ethernetCsmacd(6)"
+                if '(' in str(raw_type):
+                    match_type = re.search(r'\((\d+)\)', str(raw_type))
+                    if_type = int(match_type.group(1)) if match_type else 0
+                else:
+                    if_type = int(raw_type)
             except (ValueError, TypeError):
                 if_type = 0
 
@@ -271,12 +288,13 @@ async def discover_physical_ports(
             # === STEP 4: Friendly name generation ===
             if "slot:" in descr_lower and "port:" in descr_lower:
                 match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
-                if match:
-                    name = f"Port {match.group(1)}"
-                else:
-                    name = f"Port {logical_port}"
+                name = f"Port {match.group(1)}" if match else f"Port {logical_port}"
             elif descr_clean.isdigit():
                 name = f"Port {descr_clean}"
+            elif "gigabithethernet" in descr_lower:
+                # Cisco extraction: gigabithethernet1 -> Port 1
+                match = re.search(r'(\d+)$', descr_lower)
+                name = f"Port {match.group(1)}" if match else descr_clean
             elif "port " in descr_lower:
                 name = descr_clean
             elif descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
