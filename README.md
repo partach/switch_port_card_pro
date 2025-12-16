@@ -48,12 +48,10 @@ The integration uses baseoids that you can configure on the fly and has default 
 ## Installation
 Options:
 1. Install via HACS
-   * This integration first: <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
-   * The card second: <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro_card"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
+   * This integration <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
    * after HA reboot (Needed for new integrations): 'add integration' and choose `switch_port_card_pro` in the list. (card will be visible after browser refresh)
 2. Install manually:
    * The integration: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro, `Type`: Integration
-   * The card: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro_card, `Type`: Dashboard
    * Reboot, choose `add integration` and select `switch_port_card_pro` in the list
      
 Let the install config of the integration guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP).
