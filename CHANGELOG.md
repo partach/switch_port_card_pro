@@ -1,5 +1,5 @@
 ## Changelog
-### [0.8.4] - Major update
+### [0.9.0] - Major update
 - Refactoring, faster startup on HA restart.
 - Async snmp engine creation (does not solve HA warning, needs pysnmp 7.1 update)
 - Card is now part of integration (but requires 1 manual step to add resource, see readme)
