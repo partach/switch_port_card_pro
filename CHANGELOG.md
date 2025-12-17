@@ -5,6 +5,7 @@
 - Card is now part of integration (but requires 1 manual step to add resource, see readme)
 - Card is now visible in HA Card picker!
 - Small card updates (improve hoover with click, tigther grouping of ports, background option)
+- Resolved issues #8, #13, #14
 ### Breaking
 - could break existing hubs (if so delete hub, re-add and re-configure)
 - the separate repository with only the pro card is obsolete, please remove first
