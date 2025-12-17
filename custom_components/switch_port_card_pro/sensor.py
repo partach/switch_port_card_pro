@@ -110,7 +110,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     _LOGGER.error("SNMP walk failed for %s: %s", key, result)
                     walk_map[key] = {}
                 elif not result:
-                    _LOGGER.warning("SNMP walk empty for %s → using defaults", key)
+               #     _LOGGER.warning("SNMP walk empty for %s → using defaults", key) # surpress unneeded log
                     walk_map[key] = {}
                 else:
                     walk_map[key] = result
