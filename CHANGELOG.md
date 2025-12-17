@@ -1,9 +1,17 @@
 ## Changelog
-### [0.8.3] - Refactor update
-- refactoring, faster startup on HA restart.
-- async snmp engine creation (does not solve HA warning)
+### [0.8.4] - Major update
+- Refactoring, faster startup on HA restart.
+- Async snmp engine creation (does not solve HA warning, needs pysnmp 7.1 update)
+- Card is now part of integration (but requires 1 manual step to add resource, see readme)
+- Card is now visible in HA Card picker!
+- Small card updates (improve hoover with click, tigther grouping of ports, background option)
 ### Breaking
 - could break existing hubs (if so delete hub, re-add and re-configure)
+- the separate repository with only the pro card is obsolete, please remove first
+  
+### [0.8.3-pre] - Refactoring
+- Cisco auto port detection fix
+- card + integration in one repo
   
 ### [0.8.2] - Update on auto port detection mode
 - Netgear 724T auto detect and unifi fixed 
