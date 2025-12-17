@@ -48,15 +48,20 @@ The integration uses baseoids that you can configure on the fly and has default 
 ## Installation
 Options:
 1. Install via HACS
-   * This integration <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
-   * after HA reboot (Needed for new integrations): 'add integration' and choose `switch_port_card_pro` in the list. (card will be visible after browser refresh)
+   * This integration including the card <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
+    * After HA reboot (Needed for new integrations): choose 'add integration' (in devices and services) and choose `switch_port_card_pro` in the list.
+    * Then you need to register the card that comes with the integration manually:
+    
+    URL: `custom_components/switch_port_card_pro/frontend/switch_port_card_pro.js` Resource Type: `Java script`
+    (card will be visible after browser refresh)
+
 2. Install manually:
    * The integration: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro, `Type`: Integration
-   * Reboot, choose `add integration` and select `switch_port_card_pro` in the list
+   * The rest same as above (reboot, register card, browser refresh)
      
 Let the install config of the integration guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP).
 
-Use the card: `Dashboard` --> `Edit` --> `Add Card` --> YAML --> type: custom:switch-port-card-pro, then choose `Show visual Editor`
+Use the card: `Dashboard` --> `Edit` --> `Add Card` --> chose in the card list the switch_port_card_pro
 
 ## Preparing your network switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual.
@@ -130,7 +135,7 @@ See [CHANGELOG.md](https://github.com/partach/switch_port_card_pro/blob/main/CHA
 ## Issues
 Report at GitHub [Issues](https://github.com/partach/switch_port_card_pro/issues)
 
-## support development
-If you want to support this and future developments it would be greatly appreciated :)
+## Support development
+If you like it and find it usefull or want to support this and future developments it would be greatly appreciated :)
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg?style=flat-square)](https://paypal.me/therealbean)
