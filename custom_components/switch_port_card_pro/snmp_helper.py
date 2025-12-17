@@ -103,7 +103,7 @@ async def async_snmp_walk(
     Async SNMP WALK using the high-level walkCmd.
     Returns {full_oid: value} for all OIDs under base_oid.
     """
-    if not oid or not oid.strip():
+    if not base_oid or not base_oid.strip():
         return None
 
     engine = await _ensure_engine(hass)
