@@ -181,65 +181,65 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     "oid_rx",
                     default=current.get("oid_rx", DEFAULT_BASE_OIDS["rx"]),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_tx",
                     default=current.get("oid_tx", DEFAULT_BASE_OIDS["tx"]),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_status",
                     default=current.get("oid_status", DEFAULT_BASE_OIDS["status"]),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_speed",
                     default=current.get("oid_speed", DEFAULT_BASE_OIDS["speed"]),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_name",
                     default=current.get("oid_name", DEFAULT_BASE_OIDS.get("name", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_vlan",
                     default=current.get("oid_vlan", DEFAULT_BASE_OIDS.get("vlan", "")),
-                ): str,
+                ): cv.string,
 
                 # --- System OIDs ---
                 vol.Optional(
                     "oid_cpu",
                     default=current.get("oid_cpu", DEFAULT_SYSTEM_OIDS.get("cpu", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_firmware",
                     default=current.get("oid_firmware", DEFAULT_SYSTEM_OIDS.get("firmware", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_memory",
                     default=current.get("oid_memory", DEFAULT_SYSTEM_OIDS.get("memory", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_hostname",
                     default=current.get("oid_hostname", DEFAULT_SYSTEM_OIDS.get("hostname", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_uptime",
                     default=current.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_poe_power",
                     default=current.get("oid_poe_power", DEFAULT_SYSTEM_OIDS.get("poe_power", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_poe_status",
                     default=current.get("oid_poe_status", DEFAULT_SYSTEM_OIDS.get("poe_status", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_custom",
                     default=current.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     "oid_port_custom",
                     default=current.get("oid_port_custom", DEFAULT_SYSTEM_OIDS.get("port_custom", "")),
-                ): str,   
+                ): cv.string,   
                 vol.Optional(
                     "snmp_version",
                     default=current.get("snmp_version", "v2c"),
