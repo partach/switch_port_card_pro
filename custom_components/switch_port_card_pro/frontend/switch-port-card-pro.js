@@ -169,7 +169,7 @@ class SwitchPortCardPro extends HTMLElement {
           border-radius: 4px;
           background: rgba(var(--rgb-primary-background-color, 0, 0, 0), 0.4);
           cursor: default;
-          transition: all .15s;
+          transition: none;
           position: relative;
           box-shadow: 0 1px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.06);
         }
@@ -279,7 +279,7 @@ class SwitchPortCardPro extends HTMLElement {
         .actual-off    { background:#191919 !important; color:white !important; }
 
         /* VLAN MODE */
-        .vlan-colored { transition: background 0.4s ease, color 0.3s ease; }
+        .vlan-colored { transition: none; }
 
         ha-card {
           background: ${this._config.card_background_color || 'var(--ha-card-background, var(--card-background-color))'};
@@ -354,6 +354,44 @@ class SwitchPortCardPro extends HTMLElement {
     return (rgb[0]*299 + rgb[1]*587 + rgb[2]*114) / 1000;
   }
 
+_showPortDetails(portNum, descr, attrs) {
+    if (!this._hass) return;
+
+    // Build detailed content as markdown
+    const content = `
+**Port ${portNum} - ${descr}**
+
+State: ${attrs.status || "Unknown"}
+Speed: ${(attrs.speed_bps / 1e6 || 0).toFixed(0)} Mbps
+RX Live: ${(attrs.rx_bps_live / 1e6 || 0).toFixed(2)} Mbps
+TX Live: ${(attrs.tx_bps_live / 1e6 || 0).toFixed(2)} Mbps
+VLAN: ${attrs.vlan_id || "None"}
+PoE Power: ${attrs.poe_power_watts || 0} W (Enabled: ${attrs.poe_enabled ? "Yes" : "No"})
+Custom: ${attrs.custom || "None"}
+Interface: ${attrs.interface || "Unknown"}
+Type: ${attrs.is_sfp ? "SFP" : "Copper"}
+    `.trim();
+
+    // Use browser_mod if available, fallback to simple alert
+    const browserMod = this._hass.states["browser_mod"];
+    if (browserMod) {
+      this._hass.callService("browser_mod", "popup", {
+        title: `Port ${portNum} Details`,
+        content: {
+          type: "markdown",
+          content: content,
+        },
+        style: {
+          "--ha-card-border-radius": "16px",
+          "--popup-padding": "16px",
+        },
+      });
+    } else {
+      alert(content);  // Basic fallback for no browser_mod
+      _LOGGER.debug("browser_mod not installed - using alert for port details");
+    }
+  }
+  
   _render() {
     if (!this._hass || !this._config) return;
 
@@ -648,22 +686,14 @@ class SwitchPortCardPro extends HTMLElement {
         `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s` +
         (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "") +
         `\n${lastSeen}`;
+      div.onclick = (ev) => {
+        ev.stopPropagation();
+        const attrs = this._entities[`port_${i}_status`]?.attributes || {};
+        this._showPortDetails(i, attrs.interface || `Port ${i}`, attrs);
+      };
+      div.style.cursor = "pointer";  // Show clickable cursor
 
 
-      // Visual feedback that port is clickable
-      div.style.cursor = "pointer";
-
-      // Optional: subtle hover effect enhancement (stacks with existing)
-      div.addEventListener("mouseenter", () => {
-        if (!div.classList.contains("off")) {
-          div.style.transform = "scale(1.08)";
-          div.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
-        }
-      });
-      div.addEventListener("mouseleave", () => {
-        div.style.transform = "";
-        div.style.boxShadow = "";
-      });
       div.classList.toggle("no-row3", !hasRow3);
 
       div.innerHTML = `
