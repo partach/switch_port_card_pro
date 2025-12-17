@@ -80,6 +80,28 @@ The card comes with a configuration dialog that guides the instalation in HA.
   <em>configuration of the card</em>
 </p>
 
+| Setting | Result                          | 
+|-------|---------------------------------------------|
+| Title    | The title shown at the top of the card | 
+| Device   | The entity that represents your switch  | 
+| Fallback Entity  |  Optional if HA has issues with device recognition. Choose an entity belonging to the integration | 
+|  Total Ports   |  The total number of ports to shown in the card | 
+|  First SFP Port   |  At which index is the port an SFP port | 
+|  Bandwidth   |  The maximum bandwidth the switch can handle (in Gbps) | 
+|  Custom system value text   |  You can set your own system oid to monitor. This text is shown in the card to represent the retreived value | 
+|  Custom port value text   |  You can set your own per port oid to monitor. This text is shown in the Hoover text to represent the retreived values | 
+|  Port Size  | You can choose how big the port should be shown on the card. Mostly affects text size | 
+|  Ports per Row   | You can tweak your card toward the number of ports per row should be shown | 
+|  Port 2 row display   | Choose which value to show in the second row to of the port display | 
+|  Port 3 row display   | Choose which value to show in the third row to of the port display | 
+|  Port color scheme   |  Choose the dynamic port color scheme | 
+|  Card Background Color   | Set any rgba value for the background of the card | 
+|  Show Bandwidth gauge   | Toggle to show or not show the bandwidth gauge | 
+|  Show System info   | Toggle to show or not show the system info tray | 
+|  Show Port Selection Title   | Toggle to show or not show the title for the 2 port sections | 
+|  Hide Unused Ports   |  If you have ports that are unused in your switch you can disable them showing up in the card | 
+|  Inactive for (>hours)   |  Tied to hiding ports. Inactive ports keep being shown until after this setting. To ensure temporary inactive ports to show up in the card for the set amount of hours. | 
+
 ## Using the card example
 The card has a configuration screen which can be used in stead...
 ```yaml
