@@ -48,6 +48,35 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
         add_extra_js_url(hass, CARD_URL)
 
+        async def _register_resource(event=None):
+        try:
+            from homeassistant.components.lovelace import resources
+            
+            # Get current resources
+            resource_collection = await resources.async_get_resource_collection(hass)
+            
+            # Check if already registered
+            existing = [r for r in resource_collection.async_items() if r.get("url") == CARD_JS]
+            
+            if not existing:
+                # Add the resource
+                await resource_collection.async_create_item({
+                    "res_type": "module",
+                    "url": CARD_JS,
+                })
+                _LOGGER.info("Auto-registered Switch Port Card Pro as Lovelace resource")
+            else:
+                _LOGGER.debug("Switch Port Card Pro already registered")
+                
+        except Exception as err:
+            _LOGGER.warning(
+                "Could not auto-register Lovelace resource. "
+                "Please add manually: %s", 
+                err
+            )
+    
+        hass.bus.async_listen_once("lovelace_updated", _register_resource)
+
     except Exception as err:
         _LOGGER.warning("Frontend registration failed for %s", CARD_JS)
     return True
