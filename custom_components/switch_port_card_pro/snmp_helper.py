@@ -51,6 +51,8 @@ async def async_snmp_get(
     mp_model: int = 1,
 ) -> str | None:
     """Ultra-reliable async SNMP GET."""
+    if not oid or not oid.strip():
+        return None
     engine = await _ensure_engine(hass)
     transport = None
     
@@ -101,6 +103,9 @@ async def async_snmp_walk(
     Async SNMP WALK using the high-level walkCmd.
     Returns {full_oid: value} for all OIDs under base_oid.
     """
+    if not oid or not oid.strip():
+        return None
+
     engine = await _ensure_engine(hass)
     results: dict[str, str] = {}
     transport = None
@@ -155,18 +160,45 @@ async def async_snmp_bulk(
     retries: int = 2,
     mp_model: int = 1,
 ) -> Dict[str, str | None]:
-    """Fast parallel GET for system OIDs."""
+    """Fast parallel GET for system OIDs. Skips empty/blank OIDs."""
     if not oid_list:
         return {}
 
+    # Filter out empty or whitespace-only OIDs and remember which ones were skipped
+    filtered_oids = []
+    results_template = {}
+    for oid in oid_list:
+        stripped = oid.strip() if oid else ""
+        if stripped:
+            filtered_oids.append(stripped)
+            results_template[stripped] = None  # placeholder for real result
+        else:
+            # Map original (blank) OID to None immediately
+            results_template[oid] = None
+
+    if not filtered_oids:
+        return results_template  # All were blank → return all None
+
+    # Perform parallel GET only on valid OIDs
     async def _get_one(oid: str):
         return await async_snmp_get(
             hass, host, community, oid,
             timeout=timeout, retries=retries, mp_model=mp_model
         )
 
-    results = await asyncio.gather(*[_get_one(oid) for oid in oid_list])
-    return dict(zip(oid_list, results))
+    valid_results = await asyncio.gather(*[_get_one(oid) for oid in filtered_oids])
+
+    # Combine results back in original order/structure
+    for oid, result in zip(filtered_oids, valid_results):
+        results_template[oid] = result
+
+    # Preserve original oid_list order and include blanks as None
+    final_results = {}
+    for oid in oid_list:
+        stripped = oid.strip() if oid else ""
+        final_results[oid] = results_template.get(stripped)
+
+    return final_results
 
 
 async def discover_physical_ports(
