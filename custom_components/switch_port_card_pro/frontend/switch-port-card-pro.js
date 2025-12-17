@@ -355,42 +355,39 @@ class SwitchPortCardPro extends HTMLElement {
   }
 
 _showPortDetails(portNum, descr, attrs) {
-    if (!this._hass) return;
+  if (!this._hass) return;
 
-    // Build detailed content as markdown
-    const content = `
-**Port ${portNum} - ${descr}**
+  const content = `
+**Port ${portNum} (${descr})**
 
-State: ${attrs.status || "Unknown"}
-Speed: ${(attrs.speed_bps / 1e6 || 0).toFixed(0)} Mbps
-RX Live: ${(attrs.rx_bps_live / 1e6 || 0).toFixed(2)} Mbps
-TX Live: ${(attrs.tx_bps_live / 1e6 || 0).toFixed(2)} Mbps
-VLAN: ${attrs.vlan_id || "None"}
-PoE Power: ${attrs.poe_power_watts || 0} W (Enabled: ${attrs.poe_enabled ? "Yes" : "No"})
-Custom: ${attrs.custom || "None"}
-Interface: ${attrs.interface || "Unknown"}
-Type: ${attrs.is_sfp ? "SFP" : "Copper"}
-    `.trim();
+**State:** ${attrs.status || "Unknown"}  
+**Speed:** ${(attrs.speed_bps / 1e6 || 0).toFixed(0)} Mbps  
+**RX Live:** ${(attrs.rx_bps_live / 1e6 || 0).toFixed(2)} Mbps  
+**TX Live:** ${(attrs.tx_bps_live / 1e6 || 0).toFixed(2)} Mbps  
+**VLAN:** ${attrs.vlan_id || "None"}  
+**PoE Power:** ${attrs.poe_power_watts || 0} W (Enabled: ${attrs.poe_enabled ? "Yes" : "No"})  
+**Custom:** ${attrs.custom || "None"}  
+**Interface:** ${attrs.interface || "Unknown"}  
+**Type:** ${attrs.is_sfp ? "SFP" : "Copper"}
+  `.trim();
 
-    // Use browser_mod if available, fallback to simple alert
-    const browserMod = this._hass.states["browser_mod"];
-    if (browserMod) {
-      this._hass.callService("browser_mod", "popup", {
-        title: `Port ${portNum} Details`,
-        content: {
-          type: "markdown",
-          content: content,
-        },
-        style: {
-          "--ha-card-border-radius": "16px",
-          "--popup-padding": "16px",
-        },
-      });
-    } else {
-      alert(content);  // Basic fallback for no browser_mod
-      _LOGGER.debug("browser_mod not installed - using alert for port details");
-    }
+  const browserMod = this._hass.states["browser_mod"];
+  if (browserMod) {
+    this._hass.callService("browser_mod", "popup", {
+      title: `Port ${portNum}`,  // Simple clean title (no markdown needed)
+      content: {
+        type: "markdown",
+        content: content,
+      },
+      style: {
+        "--ha-card-border-radius": "16px",
+        "--popup-padding": "16px",
+      },
+    });
+  } else {
+    alert(content.replace(/\*\*/g, ''));  // Strip ** for alert fallback
   }
+}
   
   _render() {
     if (!this._hass || !this._config) return;
@@ -915,6 +912,7 @@ customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
     type: "switch-port-card-pro",
     name: "Switch Port Card Pro",
     description: "Visualize switch ports", 
-    preview: false
+    preview: true,
+    preview_url: "custom_components/switch_port_card_pro/frontend/the_card.png"
   });
 })();
