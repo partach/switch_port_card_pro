@@ -91,9 +91,9 @@ The card comes with a configuration dialog that guides the instalation in HA.
 |  Custom system value text   |  You can set your own system oid to monitor. This text is shown in the card to represent the retreived value | 
 |  Custom port value text   |  You can set your own per port oid to monitor. This text is shown in the Hoover text to represent the retreived values | 
 |  Port Size  | You can choose how big the port should be shown on the card. Mostly affects text size | 
-|  Ports per Row   | You can tweak your card toward the number of ports per row should be shown | 
-|  Port 2 row display   | Choose which value to show in the second row to of the port display | 
-|  Port 3 row display   | Choose which value to show in the third row to of the port display | 
+|  Ports per Row   | You can tweak your card toward the number of ports per row that will be shown | 
+|  Port 2 row display   | Choose which value to show in the second row to of the port display (can be none) | 
+|  Port 3 row display   | Choose which value to show in the third row to of the port display (can be none) | 
 |  Port color scheme   |  Choose the dynamic port color scheme | 
 |  Card Background Color   | Set any rgba value for the background of the card | 
 |  Show Bandwidth gauge   | Toggle to show or not show the bandwidth gauge | 
