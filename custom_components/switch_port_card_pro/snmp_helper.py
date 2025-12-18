@@ -241,19 +241,15 @@ async def discover_physical_ports(
             except (ValueError, IndexError, AttributeError):
                 continue
 
-            # === NEW FILTER: Reject high-index OIDs (1000+) ===
-            # This automatically handles Cisco virtual/logical interfaces like Po1 or Tunnel
-            if if_index >= 1000:
-                continue
 
             # === STEP 1: Reject obvious virtual/junk interfaces ===
-            if "cpu interface" in descr_lower or "link aggregate" in descr_lower:
+            if any(x in descr_lower for x in ["cpu interface", "link aggregate", "logical-int"]):
                 continue
             
             # Patterns that should match at word start
             word_start_bad = [r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb', 
                              r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl', 
-                             r'\bip6gre', r'\bwds', r'\bloopback']
+                             r'\bip6gre', r'\bwds', r'\bloopback', r'\bpo\d+']
             if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
                 continue
             
@@ -265,18 +261,24 @@ async def discover_physical_ports(
             if any(re.search(pattern, descr_lower) for pattern in exact_word_bad):
                 continue
 
-            # === STEP 2: Accept ANYTHING that looks like a real port ===
-            # Added 'gigabithethernet' for Cisco compatibility
+            # === STEP 2: Accept anything that looks like a real port ===
             is_likely_physical = (
                 any(k in descr_lower for k in [
                     "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp", 
-                    "gigabit", "fasteth", "10g", "slot:", "level", "gigabithethernet"
+                    "gigabit", "fasteth", "10g", "slot:", "level",
                 ]) or
-                descr_clean.isdigit() or
-                re.match(r'^[pg]\d+', descr_lower) or
+                re.match(r'^gigabithethernet\d+', descr_lower) or
+                re.match(r'^[pg]\d+$', descr_lower) or
                 (descr_lower.startswith("slot:") and "port:" in descr_lower)
             )
-
+            # Special case: single-digit descriptions are ambiguous
+            # Only accept if ifIndex is reasonable (< 1000) AND no other indicators of virtual
+            if descr_clean.isdigit():
+                # If it's just a digit and ifIndex is very high, likely virtual
+                if if_index >= 1000:
+                    continue
+                # Otherwise treat as potentially physical
+                is_likely_physical = True
             if not is_likely_physical:
                 continue
 
