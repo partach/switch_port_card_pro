@@ -1,4 +1,15 @@
 ## Changelog
+
+### [0.9.1] - Compatibility update
+- More switches now supported in auto port detection
+- Card updates:
+  - System item boxes can be hidden or shown per item
+  - Clicking ports shows HA more info for ports (much better)
+- Integration and card in one is currently not possible according HA experts
+  - will leave it in as it works for some..
+  - For other: separate repository for card (see Readme and Discussion)   
+- In case of issue see Discussion section of repository
+
 ### [0.9.0] - Major update
 - Refactoring, faster startup on HA restart.
 - Async snmp engine creation (does not solve HA warning, needs pysnmp 7.1 update)
