@@ -11,7 +11,6 @@ const DEFAULT_CONFIG = {
   show_total_bandwidth: true,
   max_bandwidth_gbps: 100,
   compact_mode: false,
-  show_system_info: true,
   show_port_type_labels: true,
   row2: "rx_tx_live",
   row3: "speed",
@@ -21,6 +20,15 @@ const DEFAULT_CONFIG = {
   hide_unused_port: false,
   hide_unused_port_hours: 24,
   card_background_color: "rgba(var(--rgb-primary-background-color, 40, 40, 40), 0.4)",
+  system_boxes: {
+    cpu: true,
+    memory: true,
+    uptime: true,
+    hostname: true,
+    poe: true,
+    firmware: true,
+    custom: true,
+  },
 };
 
 class SwitchPortCardPro extends HTMLElement {
@@ -202,7 +210,22 @@ class SwitchPortCardPro extends HTMLElement {
           align-items: center;
           justify-content: center;
         }
+        .system-box {
+          background: rgba(var(--rgb-card-background-color,255,255,255),0.08);
+          backdrop-filter: blur(8px);
+          padding: 7px 9px;
+          border-radius: 10px;
+          text-align: center;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+          cursor: pointer; /* ← Makes mouse show it's clickable */
+          transition: all 0.2s ease; /* ← Smooth hover */
+        }
 
+        .system-box:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          background: rgba(var(--rgb-card-background-color,255,255,255),0.15);
+        }
         /* Adjust spacing when row3 is hidden */
         .port.no-row3 .port-row {
           margin-top: 1px;
@@ -354,41 +377,61 @@ class SwitchPortCardPro extends HTMLElement {
     return (rgb[0]*299 + rgb[1]*587 + rgb[2]*114) / 1000;
   }
 
-_showPortDetails(portNum, descr, attrs) {
-  if (!this._hass) return;
+  _renderSystemInfo() {
+  const show = this._config.system_boxes || {};
+  const data = this._systemData || {};
 
-  const content = `
-**Port ${portNum} (${descr})**
-
-**State:** ${attrs.status || "Unknown"}  
-**Speed:** ${(attrs.speed_bps / 1e6 || 0).toFixed(0)} Mbps  
-**RX Live:** ${(attrs.rx_bps_live / 1e6 || 0).toFixed(2)} Mbps  
-**TX Live:** ${(attrs.tx_bps_live / 1e6 || 0).toFixed(2)} Mbps  
-**VLAN:** ${attrs.vlan_id || "None"}  
-**PoE Power:** ${attrs.poe_power_watts || 0} W (Enabled: ${attrs.poe_enabled ? "Yes" : "No"})  
-**Custom:** ${attrs.custom || "None"}  
-**Interface:** ${attrs.interface || "Unknown"}  
-**Type:** ${attrs.is_sfp ? "SFP" : "Copper"}
-  `.trim();
-
-  const browserMod = this._hass.states["browser_mod"];
-  if (browserMod) {
-    this._hass.callService("browser_mod", "popup", {
-      title: `Port ${portNum}`,  // Simple clean title (no markdown needed)
-      content: {
-        type: "markdown",
-        content: content,
-      },
-      style: {
-        "--ha-card-border-radius": "16px",
-        "--popup-padding": "16px",
-      },
-    });
-  } else {
-    alert(content.replace(/\*\*/g, ''));  // Strip ** for alert fallback
+  return html`
+    <div class="system-tray">
+      ${show.cpu ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.cpu?.entity_id)}>
+          <span class="system-label">CPU</span>
+          <span class="system-value">${data.cpu || '--'}</span>
+        </div>` : ''}
+      ${show.memory ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.memory?.entity_id)}>
+          <span class="system-label">Memory</span>
+          <span class="system-value">${data.memory || '--'}</span>
+        </div>` : ''}
+      ${show.firmware ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.firmware?.entity_id)}>
+          <span class="system-label">Firmware</span>
+          <span class="system-value">${data.firmware || '--'}</span>
+        </div>` : ''}
+      ${show.hostname ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.hostname?.entity_id)}>
+          <span class="system-label">Hostname</span>
+          <span class="system-value">${data.hostname || '--'}</span>
+        </div>` : ''}
+      ${show.uptime ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.uptime?.entity_id)}>
+          <span class="system-label">Uptime</span>
+          <span class="system-value">${data.uptime || '--'}</span>
+        </div>` : ''}
+      ${show.poe ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.total_poe?.entity_id)}>
+          <span class="system-label">PoE Total</span>
+          <span class="system-value">${data.total_poe || '--'}</span>
+        </div>` : ''}
+      ${show.custom ? html`
+        <div class="system-box" @click=${() => this._showEntityDetails(this._entities.custom_value?.entity_id)}>
+          <span class="system-label">${this._config.custom_text || 'Custom'}</span>
+          <span class="system-value">${data.custom || '--'}</span>
+        </div>` : ''}
+    </div>`;
   }
-}
-  
+
+  _showEntityDetails(entityId) {
+    if (!entityId || !this._hass) return;
+
+    // Dispatch HA's more-info event
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      bubbles: true,
+      composed: true,
+      detail: { entityId }
+    }));
+  }
+
   _render() {
     if (!this._hass || !this._config) return;
 
@@ -423,7 +466,8 @@ _showPortDetails(portNum, descr, attrs) {
     this.shadowRoot.getElementById("bandwidth").textContent = bwText;
 
     // System boxes
-    if (this._config.show_system_info === true) {
+    const sysCfg = this._config.system_boxes || {};
+    if (this._config.show_system_info !== false) {
       const makeBox = (value, label) => {
         if (value == null || value === "unknown") return '';
         const isLong = value.toString().length > 10;
@@ -434,13 +478,13 @@ _showPortDetails(portNum, descr, attrs) {
       };
 
       this.shadowRoot.getElementById("system").innerHTML = `
-        ${makeBox(cpu?.state != null ? Math.round(cpu.state) + "%" : null, "CPU")}
-        ${makeBox(mem?.state != null ? Math.round(mem.state) + "%" : null, "Memory")}
-        ${makeBox(up?.state != null ? this._formatTime(Number(up.state)) : null, "Up-time")}
-        ${makeBox(host?.state, "Host")}
-        ${makeBox(poe?.state != null ? poe.state + " W" : null, "PoE Total")}
-        ${makeBox(fw?.state, "Firmware")}
-        ${makeBox(customVal?.state, this._config.custom_text)}
+        ${sysCfg.cpu      ? makeBox(cpu?.state != null ? Math.round(cpu.state) + "%" : null, "CPU") : ""}
+        ${sysCfg.memory   ? makeBox(mem?.state != null ? Math.round(mem.state) + "%" : null, "Memory") : ""}
+        ${sysCfg.uptime   ? makeBox(up?.state != null ? this._formatTime(Number(up.state)) : null, "Up-time") : ""}
+        ${sysCfg.hostname ? makeBox(host?.state, "Host") : ""}
+        ${sysCfg.poe      ? makeBox(poe?.state != null ? poe.state + " W" : null, "PoE Total") : ""}
+        ${sysCfg.firmware ? makeBox(fw?.state, "Firmware") : ""}
+        ${sysCfg.custom   ? makeBox(customVal?.state, this._config.custom_text) : ""}
       `.trim();
     }
     else {
@@ -611,13 +655,13 @@ _showPortDetails(portNum, descr, attrs) {
 
           case "actual_speed":
             const mbps = totalBps / 1e6;
-            if (mbps >= 100) speedClass = "actual-100m";
-            else if (mbps >= 10) speedClass = "actual-10m";
-            else if (mbps >= 1) speedClass = "actual-1m";
-            else if (mbps >= 0.1) speedClass = "actual-100k";
-            else if (mbps > 0.001) speedClass = "actual-1k";
-            else speedClass = "actual-off";
-            speedText = mbps >= 1 ? `${mbps.toFixed(1)}M` : mbps >= 0.1 ? `${(mbps*1000).toFixed(0)}K` : "—";
+            if (mbps >= 100) speedClass = "actual-100m",speedText=`${(mbps/1000).toFixed(1)}G`;
+            else if (mbps >= 10) speedClass = "actual-10m",speedText=`${mbps.toFixed(1)}M`;
+            else if (mbps >= 1) speedClass = "actual-1m",speedText=`${mbps.toFixed(0)}M`;
+            else if (mbps >= 0.1) speedClass = "actual-100k",speedText=`${(mbps*10).toFixed(0)}K`;
+            else if (mbps > 0.001) speedClass = "actual-1k",speedText=`${(mbps*100).toFixed(0)}K`;
+            else speedClass = "actual-off", speedText=`0k`
+
             break;
 
           default:
@@ -685,8 +729,8 @@ _showPortDetails(portNum, descr, attrs) {
         `\n${lastSeen}`;
       div.onclick = (ev) => {
         ev.stopPropagation();
-        const attrs = this._entities[`port_${i}_status`]?.attributes || {};
-        this._showPortDetails(i, attrs.interface || `Port ${i}`, attrs);
+        const entityId = this._entities[`port_${i}_status`]?.entity_id;
+        this._showEntityDetails(entityId);
       };
       div.style.cursor = "pointer";  // Show clickable cursor
 
@@ -714,12 +758,27 @@ _showPortDetails(portNum, descr, attrs) {
 }
 
 class SwitchPortCardProEditor extends HTMLElement {
-  setConfig(c) { this._config = c || {total_ports:8,sfp_start_port:9,show_total_bandwidth:true,max_bandwidth_gbps:100,compact_mode:false,show_system_info:true,show_port_type_labels:true,row2:'rx_tx_live',row3:'speed'}; }
+  setConfig(config) {
+    // Merge the user's config with the master defaults.
+    // This ensures 'system_boxes' and other nested objects always exist.
+    this._config = {
+      ...DEFAULT_CONFIG,
+      ...config,
+      // Ensure nested objects are also merged correctly if the user has a partial config
+      system_boxes: {
+        ...DEFAULT_CONFIG.system_boxes,
+        ...(config?.system_boxes || {})
+      }
+    };
+  }
 
   set hass(hass) {
     this._hass = hass;
     if (!hass || this._last === JSON.stringify(this._config)) return;
-    this._last = JSON.stringify(this._config);
+  // Prevent infinite re-rendering loop
+    const configStr = JSON.stringify(this._config);
+    if (this._last === configStr) return;
+    this._last = configStr;
 
     const seen = new Set();
     const deviceList = [];
@@ -860,7 +919,7 @@ class SwitchPortCardProEditor extends HTMLElement {
             value="${this._config.card_background_color || ''}">
         </div>
         <div class="checkbox-row">
-          <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false?'checked':''}></ha-checkbox>
+          <ha-checkbox data-key="show_total_bandwidth" ${this._config.show_total_bandwidth!==false ? 'checked':''}></ha-checkbox>
           <span class="checkbox-label">Show Bandwidth Gauge</span>
         </div>
 
@@ -869,6 +928,38 @@ class SwitchPortCardProEditor extends HTMLElement {
           <ha-checkbox data-key="show_system_info" ${this._config.show_system_info !== false ? 'checked' : ''}></ha-checkbox>
           <span class="checkbox-label">Show System Info (CPU, Mem, FW, etc.)</span>
         </div>
+
+        <div class="row-group">
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.cpu" ${this._config.system_boxes.cpu !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">CPU</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.memory" ${this._config.system_boxes.memory !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Memory</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.uptime" ${this._config.system_boxes.uptime !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Uptime</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.hostname" ${this._config.system_boxes.hostname !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Host</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.poe" ${this._config.system_boxes.poe !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">PoE</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.firmware" ${this._config.system_boxes.firmware !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Firmware</span>
+          </div>
+          <div class="checkbox-row">
+            <ha-checkbox data-key="system_boxes.custom" ${this._config.system_boxes.custom !== false ? 'checked' : ''}></ha-checkbox>
+            <span class="checkbox-label">Custom</span>
+          </div>
+        </div>
+
 
         <div class="checkbox-row">
           <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
@@ -881,18 +972,23 @@ class SwitchPortCardProEditor extends HTMLElement {
         </div>
       </div>
     `;
-    // Fix Lovelace editor not showing correct dropdown values
-    this.querySelectorAll('select[data-key]').forEach(sel => {
-      sel.value = this._config[sel.dataset.key] ?? '';
-    });
+
+    const setDeep = (obj, path, value) => {
+      const keys = path.split(".");
+      const last = keys.pop();
+      const target = keys.reduce((o, k) => (o[k] ??= {}), obj);
+      target[last] = value;
+    };
 
     this.querySelectorAll("[data-key]").forEach(el => {
       el.addEventListener("change", () => {
         const key = el.dataset.key;
         const value = el.tagName === "HA-CHECKBOX" ? el.checked : el.value;
-        const finalValue = el.type === "number" ? parseInt(value) || 0 : value;
 
-        this._config = { ...this._config, [key]: finalValue };
+        const newConfig = structuredClone(this._config);
+        setDeep(newConfig, key, value);
+
+        this._config = newConfig;
         this.dispatchEvent(new CustomEvent("config-changed", {
           detail: { config: this._config },
           bubbles: true,
