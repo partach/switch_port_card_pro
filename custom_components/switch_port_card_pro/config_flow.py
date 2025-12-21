@@ -19,11 +19,9 @@ from .const import (
     DOMAIN,
     CONF_COMMUNITY,
     CONF_PORTS,
-    CONF_INCLUDE_VLANS,
     DEFAULT_PORTS,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
-    CONF_SFP_PORTS_START,
 )
 
 _LOGGER = logging.getLogger(__name__)
