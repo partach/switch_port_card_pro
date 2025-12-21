@@ -2,36 +2,44 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly
+  workflow_dispatch:
 
+permissions: {}
 jobs:
-  validate:
+  validate-code:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
-
-      # THIS IS THE NUCLEAR FIX — NO GIT FETCH AT ALL
-      - name: Run pre-commit (offline mode)
+      - name: Install Python dependencies
         run: |
-          # Disable all network access for pre-commit hooks
-          export PRE_COMMIT_USE_MIRROR=1
-          export GIT_CONFIG_NOGLOBAL=true
-          export PRE_COMMIT_HOME="${RUNNER_TEMP}/precommit"
-          mkdir -p "$PRE_COMMIT_HOME"
+          python -m pip install --upgrade pip
+          pip install ruff
 
-          # Run once — it will fail to fetch → that's fine
-          pre-commit run --all-files --show-diff-on-failure || true
+      - name: Lint Python (Ruff)
+        run: ruff check .
 
-          # Install hooks locally (no internet needed after first clone)
-          pre-commit install --install-hooks --overwrite
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-          # Run again — now everything is local → SUCCESS
-          pre-commit run --all-files --show-diff-on-failure
+      - name: Lint JavaScript (ESLint)
+        run: |
+          if [ -f package.json ]; then
+            npm install
+            npm run lint
+          else
+            echo "No package.json found, skipping JS lint."
+          fi
