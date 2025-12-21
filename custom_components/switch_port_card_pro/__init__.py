@@ -49,7 +49,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         add_extra_js_url(hass, CARD_URL)
 
     except Exception as err:
-        _LOGGER.warning("Frontend registration failed for %s", CARD_JS)
+        _LOGGER.warning("Frontend registration failed for: %s Error: %s", CARD_JS, err)
     return True
 
 
