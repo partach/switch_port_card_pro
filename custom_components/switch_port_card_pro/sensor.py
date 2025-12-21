@@ -5,7 +5,6 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
-import homeassistant.helpers.device_registry as dr
 from homeassistant.helpers import device_registry
 from datetime import datetime
 from homeassistant.components.sensor import (
@@ -15,7 +14,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    CONF_HOST,
     UnitOfDataRate,
     UnitOfTime,
     PERCENTAGE,
@@ -29,12 +27,6 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import (
-    CONF_COMMUNITY,
-    CONF_PORTS,
-    CONF_INCLUDE_VLANS,
-    DEFAULT_BASE_OIDS,
-    DEFAULT_PORTS,
-    DEFAULT_SYSTEM_OIDS,
     DOMAIN,
     SNMP_VERSION_TO_MP_MODEL,
 )
