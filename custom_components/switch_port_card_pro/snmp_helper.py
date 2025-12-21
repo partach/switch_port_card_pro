@@ -16,8 +16,6 @@ from pysnmp.hlapi.v3arch.asyncio import (
     walk_cmd,
 )
 
-from .const import SNMP_VERSION_TO_MP_MODEL
-
 _LOGGER = logging.getLogger(__name__)
 
 # Global engine and lock for thread-safe initialization
