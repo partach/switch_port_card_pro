@@ -33,7 +33,6 @@ from .const import (
 from .snmp_helper import (
     async_snmp_walk,
     async_snmp_bulk,
-    discover_physical_ports,
 )
 _LOGGER = logging.getLogger(__name__)
 
