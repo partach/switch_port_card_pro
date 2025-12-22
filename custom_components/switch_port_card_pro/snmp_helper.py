@@ -31,7 +31,14 @@ async def _ensure_engine(hass):
         if _SNMP_ENGINE is None:
             # Create engine in executor to avoid blocking
             def _create_engine():
-                return SnmpEngine()
+                engine = SnmpEngine()
+                # Actually load the MIBs from disk so we do not do it in the event loop
+                mib_view_controller = view.MibViewController(
+                    engine.message_dispatcher.mib_instrum_controller.get_mib_builder()
+                )
+                engine.cache["mibViewController"] = mib_view_controller
+                mib_view_controller.mibBuilder.load_modules()
+                return engine
             
             _SNMP_ENGINE = await hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created")
