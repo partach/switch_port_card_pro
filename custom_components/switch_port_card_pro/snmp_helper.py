@@ -109,7 +109,7 @@ async def async_snmp_walk(
     Returns {full_oid: value} for all OIDs under base_oid.
     """
     if not base_oid or not base_oid.strip():
-        return None
+        return {}
 
     engine = await _ensure_engine(hass)
     results: dict[str, str] = {}
@@ -132,24 +132,25 @@ async def async_snmp_walk(
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
         )
-
-        async for error_indication, error_status, error_index, var_binds in iterator:
-            if error_indication:
-                _LOGGER.debug("SNMP WALK error: %s", error_indication)
-                break
-            
-            if error_status:
-                _LOGGER.debug("SNMP WALK error status: %s", error_status.prettyPrint())
-                break
-
-            for var_bind in var_binds:
-                oid, value = var_bind
-                oid_str = str(oid)
-                # Double-check we are still in the tree
-                if not oid_str.startswith(base_oid):
-                    return results
-                results[oid_str] = value.prettyPrint()
-
+        try:
+            async for error_indication, error_status, error_index, var_binds in iterator:
+                if error_indication:
+                    _LOGGER.debug("SNMP WALK error: %s", error_indication)
+                    break
+                
+                if error_status:
+                    _LOGGER.debug("SNMP WALK error status: %s", error_status.prettyPrint())
+                    break
+    
+                for var_bind in var_binds:
+                    oid, value = var_bind
+                    oid_str = str(oid)
+                    # Double-check we are still in the tree
+                    if not oid_str.startswith(base_oid):
+                        return results
+                    results[oid_str] = value.prettyPrint()
+        except Exception as iter_err:
+                    _LOGGER.debug("SNMP WALK iterator failed on %s (oid=%s): %s", host, base_oid, iter_err)
     except Exception as exc:
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
     
