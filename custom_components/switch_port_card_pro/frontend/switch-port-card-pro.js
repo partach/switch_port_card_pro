@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
   ports_per_row: 8,
   hide_unused_port: false,
   hide_unused_port_hours: 24,
+  truncate_text: true,
   card_background_color: "rgba(var(--rgb-primary-background-color, 40, 40, 40), 0.4)",
   system_boxes: {
     cpu: true,
@@ -531,17 +532,23 @@ class SwitchPortCardPro extends HTMLElement {
       if (key === "none") return null;
 
       const truncate = (str, portSize = "medium") => {
+        if (this._config.truncate_text !== true) {
+          return str ?? '\u00A0';
+        }
+
         if (!str) return '\u00A0';
         str = str.toString().trim();
+
         let maxChars;
         switch (portSize) {
           case "xsmall":   maxChars = 12; break;
-          case "small":   maxChars = 11; break;
-          case "medium":  maxChars = 10; break;
-          case "large":   maxChars = 9;  break;
-          case "xlarge":  maxChars = 7;  break;
-          default:        maxChars = 10;
+          case "small":    maxChars = 11; break;
+          case "medium":   maxChars = 10; break;
+          case "large":    maxChars = 9;  break;
+          case "xlarge":   maxChars = 7;  break;
+          default:         maxChars = 10;
         }
+
         return str.length <= maxChars ? str : str.slice(0, maxChars - 2) + "..";
       };
 
