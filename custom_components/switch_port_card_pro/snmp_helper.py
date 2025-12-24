@@ -257,7 +257,8 @@ async def discover_physical_ports(
         # Extract manufacturer from sysDescr
         manufacturer = _extract_manufacturer(sys_descr)
         
-        for oid_str, descr_raw in descr_data.items():
+        sorted_oids = sorted(descr_data.keys(), key=lambda x: int(x.split('.')[-1]))
+        for oid_str in sorted_oids:
             try:
                 # Extract ifIndex from the end of the OID
                 if_index = int(oid_str.split(".")[-1])
