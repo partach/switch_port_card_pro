@@ -259,6 +259,7 @@ async def discover_physical_ports(
         
         sorted_oids = sorted(descr_data.keys(), key=lambda x: int(x.split('.')[-1]))
         for oid_str in sorted_oids:
+            descr_raw = descr_data[oid_str]
             try:
                 # Extract ifIndex from the end of the OID
                 if_index = int(oid_str.split(".")[-1])
