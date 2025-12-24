@@ -1,5 +1,10 @@
 ## Changelog
 
+### [0.9.1] - Small fixes
+- Manufacturer naming
+- Card updates:
+  - Fix Mbps always displaying even when Gbps should be displayed
+
 ### [0.9.1] - Compatibility update
 - More switches now supported in auto port detection
 - Card updates:
@@ -9,6 +14,7 @@
   - will leave it in as it works for some..
   - For other: separate repository for card (see Readme and Discussion)   
 - In case of issue see Discussion section of repository
+- fix Mbps always displaying even when Gbps should be displayed
 
 ### [0.9.0] - Major update
 - Refactoring, faster startup on HA restart.
