@@ -7,6 +7,7 @@
 [![HACS validated](https://img.shields.io/badge/HACS-validated-41BDF5?style=flat-square)](https://github.com/hacs/integration)
 
 This Home Assistant integration (Card installed separately, see below) shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
+Any remarks or questions? Please see our Discussion corner on GitHub
 
 <p align="center">
   <img src="https://github.com/partach/switch_port_card_pro/blob/main/pro%20snmp%20integration%20success.png" width="600"/>
@@ -142,7 +143,7 @@ For the 'port oid's' the integration will walk these oid's (meaning the sw puts 
 | –     | `sensor.switch_192_168_1_1_uptime`     | `state`                | The up time of the switch                     | `1.3.6.1.2.1.1.3.0`  |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `port_name`            | Port description / name              | `1.3.6.1.2.1.31.1.1.1.18`        |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `status`               | Link state (up/down)                 | `1.3.6.1.2.1.2.2.1.8`             |
-| x     | `sensor.switch_192_168_1_1_port_x_status`   | `speed_bps`            | Current link speed in bps            | `1.3.6.1.2.1.2.2.1.5`         |
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `speed_bps`            | Current link speed in bps            | `1.3.6.1.2.1.2.2.1.5`  (32 bit)  `1.3.6.1.2.1.31.1.1.1.15`  (64 bit) |  
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `rx_bps_live`          | Real-time RX bandwidth (bps)         | Custom calculation / script         |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `tx_bps_live`          | Real-time TX bandwidth (bps)         | Custom calculation / script         |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `poe_enabled`          | PoE enabled on port                  | `1.3.6.1.4.1.<vendor>.poe.x`       |
