@@ -261,14 +261,18 @@ async def discover_physical_ports(
         try:
             if_index = int(oid_str.split(".")[-1])
             descr_clean, descr_lower = descr_raw.strip(), descr_raw.strip().lower()
-        except Exception: 
+        except (ValueError, IndexError):
             continue
         
-        if _is_virtual_interface(descr_lower): 
+        # 1. Skip Virtual
+        if _is_virtual_interface(descr_lower):
             continue
-        if not _is_physical_interface(descr_lower, descr_clean, if_index): 
+            
+        # 2. Skip non-physical (Management, VLANs, etc.)
+        if not _is_physical_interface(descr_lower, descr_clean, if_index):
             continue
         
+        # 3. Detect Hardware details
         if_type = _get_interface_type(type_data, if_index)
         is_sfp, detection = _detect_sfp_port(if_type, descr_lower)
         
@@ -278,8 +282,7 @@ async def discover_physical_ports(
             "if_descr": descr_clean,
             "is_sfp": is_sfp,
             "is_copper": not is_sfp,
-            "detection": detection,
-            "speed_mbps": _get_port_speed(speed_data, high_speed_data, if_index),
+            "detection_method": detection,
             "manufacturer": manufacturer,
         }
         logical_port += 1
@@ -331,11 +334,12 @@ def _is_virtual_interface(descr_lower: str) -> bool:
 def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) -> bool:
     """Check if interface description indicates a front-facing physical port."""
     
-    # Exclude management/console ports (universally found on Cisco 0/0, or labeled 'mgmt')
+    # Universal exclusion of management/console ports (e.g., Cisco 3850 Gig0/0)
     if any(k in descr_lower for k in ["mgmt", "management", "console"]):
         return False
         
-    # Specifically catch Cisco management ports like GigabitEthernet0/0
+    # Specifically catch Cisco/Standard management ports like GigabitEthernet0/0
+    # but allow valid data ports like 1/0/1
     if re.search(r'ethernet0/0$', descr_lower):
         return False
 
@@ -376,9 +380,11 @@ def _get_interface_type(type_data: dict, if_index: int) -> int:
 
 def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
     """Detect if port is SFP/fiber based on type and name."""
+    # Netgear 10G special case
     if "10g - level" in descr_lower:
         return True, "netgear_10g_sfp"
 
+    # Cisco stack/modular slot logic (modular slots are typically SFP)
     cisco_slot_match = re.search(r'gigabithethernet(\d+)/(\d+)/(\d+)', descr_lower)
     if cisco_slot_match:
         module_slot = int(cisco_slot_match.group(2))
@@ -386,9 +392,11 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
             return True, "cisco_module_sfp"
         return False, "cisco_fixed_copper"
 
+    # Standard SNMP types for fiber
     if if_type in (56, 161, 171, 172):
         return True, "type_match"
     
+    # Common keyword matching
     is_sfp_by_name = any(k in descr_lower for k in [
         "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase-", 
         "mini-gbic", "sfp+", "sfp28", "25g", "40g", "100g", "qsfp"
@@ -398,23 +406,6 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
         return True, "name_keyword"
 
     return False, "default_copper"
-
-
-def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> int:
-    """Get port speed in Mbps."""
-    raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
-    if raw_high:
-        try: return int(raw_high)
-        except (ValueError, TypeError): 
-            pass
-    
-    raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
-    if raw_speed:
-        try: return int(raw_speed) // 1_000_000
-        except (ValueError, TypeError): 
-            pass
-    
-    return 0
 
 
 def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -> str:
