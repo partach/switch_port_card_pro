@@ -309,7 +309,7 @@ async def discover_physical_ports(
         
     except asyncio.CancelledError:
         raise
-    except Exception as exc:
+    except Exception:
         _LOGGER.exception("Failed to auto-discover ports on %s", host)
         return {}
 
