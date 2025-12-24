@@ -1,4 +1,4 @@
-"""Async SNMP helper works perfectly with pysnmp-7)"""
+"""Async SNMP helper works perfectly with pysnmp-7"""
 from __future__ import annotations
 import logging
 import re
@@ -31,14 +31,7 @@ async def _ensure_engine(hass):
         if _SNMP_ENGINE is None:
             # Create engine in executor to avoid blocking
             def _create_engine():
-                engine = SnmpEngine()
-                # Actually load the MIBs from disk so we do not do it in the event loop
-           #     mib_view_controller = view.MibViewController(
-           #        engine.message_dispatcher.mib_instrum_controller.get_mib_builder()
-           #     )
-           #    engine.cache["mibViewController"] = mib_view_controller
-           #    mib_view_controller.mibBuilder.load_modules()
-                return engine
+                return SnmpEngine()
             
             _SNMP_ENGINE = await hass.async_add_executor_job(_create_engine)
             _LOGGER.debug("SNMP engine created")
@@ -58,6 +51,7 @@ async def async_snmp_get(
     """Ultra-reliable async SNMP GET."""
     if not oid or not oid.strip():
         return None
+    
     engine = await _ensure_engine(hass)
     transport = None
     
@@ -66,6 +60,7 @@ async def async_snmp_get(
         transport.timeout = timeout
         transport.retries = retries
         obj_identity = ObjectIdentity(oid)
+        
         error_indication, error_status, error_index, var_binds = await get_cmd(
             engine,
             CommunityData(community, mpModel=mp_model),
@@ -90,6 +85,8 @@ async def async_snmp_get(
 
         return var_binds[0][1].prettyPrint() if var_binds else None
 
+    except asyncio.CancelledError:
+        raise
     except Exception as exc:
         _LOGGER.debug("SNMP GET exception on %s (oid=%s): %s", host, oid, exc)
         return None
@@ -132,6 +129,7 @@ async def async_snmp_walk(
             lexicographicMode=False,
             ignoreNonIncreasingOid=True,
         )
+        
         try:
             async for error_indication, error_status, error_index, var_binds in iterator:
                 if error_indication:
@@ -149,8 +147,13 @@ async def async_snmp_walk(
                     if not oid_str.startswith(base_oid):
                         return results
                     results[oid_str] = value.prettyPrint()
+        except asyncio.CancelledError:
+            raise
         except Exception as iter_err:
-                    _LOGGER.debug("SNMP WALK iterator failed on %s (oid=%s): %s", host, base_oid, iter_err)
+            _LOGGER.debug("SNMP WALK iterator failed on %s (oid=%s): %s", host, base_oid, iter_err)
+    
+    except asyncio.CancelledError:
+        raise
     except Exception as exc:
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
     
@@ -170,20 +173,19 @@ async def async_snmp_bulk(
     if not oid_list:
         return {}
 
-    # Filter out empty or whitespace-only OIDs and remember which ones were skipped
+    # Filter out empty or whitespace-only OIDs
     filtered_oids = []
     results_template = {}
     for oid in oid_list:
         stripped = oid.strip() if oid else ""
         if stripped:
             filtered_oids.append(stripped)
-            results_template[stripped] = None  # placeholder for real result
+            results_template[stripped] = None
         else:
-            # Map original (blank) OID to None immediately
             results_template[oid] = None
 
     if not filtered_oids:
-        return results_template  # All were blank → return all None
+        return results_template
 
     # Perform parallel GET only on valid OIDs
     async def _get_one(oid: str):
@@ -194,11 +196,11 @@ async def async_snmp_bulk(
 
     valid_results = await asyncio.gather(*[_get_one(oid) for oid in filtered_oids])
 
-    # Combine results back in original order/structure
+    # Combine results back
     for oid, result in zip(filtered_oids, valid_results):
         results_template[oid] = result
 
-    # Preserve original oid_list order and include blanks as None
+    # Preserve original oid_list order
     final_results = {}
     for oid in oid_list:
         stripped = oid.strip() if oid else ""
@@ -229,13 +231,13 @@ async def discover_physical_ports(
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
             return {}
         
-        _LOGGER.debug("ifDescr data from %s with info:\n%s", host, descr_data)
+        _LOGGER.debug("ifDescr data from %s: %d interfaces found", host, len(descr_data))
         
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
         )
-        _LOGGER.debug("ifType data from %s with info:\n%s", host, type_data)
+        _LOGGER.debug("ifType data from %s: %d types found", host, len(type_data))
         
         # Step 3: Get speed data
         speed_data = await async_snmp_walk(
@@ -308,7 +310,7 @@ async def discover_physical_ports(
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        _LOGGER.exception("Failed to auto-discover ports on %s: %s", host, exc)
+        _LOGGER.exception("Failed to auto-discover ports on %s", host)
         return {}
 
 
@@ -354,12 +356,11 @@ def _is_virtual_interface(descr_lower: str) -> bool:
 
 def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) -> bool:
     """Check if interface description indicates a physical interface."""
-    # Universal exclusion of management/console ports (e.g., Cisco 3850 Gig0/0)
+    # Universal exclusion of management/console ports
     if any(k in descr_lower for k in ["mgmt", "management", "console"]):
         return False
         
     # Specifically catch Cisco/Standard management ports like GigabitEthernet0/0
-    # but allow valid data ports like 1/0/1
     if re.search(r'ethernet0/0$', descr_lower):
         return False
     
@@ -376,10 +377,8 @@ def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) ->
     
     # Special case: single-digit descriptions
     if descr_clean.isdigit():
-        # If ifIndex is very high, likely virtual
         if if_index >= 1000:
             return False
-        # Otherwise treat as potentially physical
         return True
     
     return is_likely_physical
@@ -410,7 +409,7 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
     if "10g - level" in descr_lower:
         return True, "netgear_10g_sfp"
 
-    # Cisco stack/modular slot logic (modular slots are typically SFP)
+    # Cisco stack/modular slot logic
     cisco_slot_match = re.search(r'gigabithethernet(\d+)/(\d+)/(\d+)', descr_lower)
     if cisco_slot_match:
         module_slot = int(cisco_slot_match.group(2))
@@ -436,7 +435,7 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
 
 def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> int:
     """Get port speed in Mbps."""
-    # Try high-speed first (ifHighSpeed - more accurate for Gigabit+)
+    # Try high-speed first (ifHighSpeed)
     raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
     if raw_high:
         try:
@@ -457,7 +456,7 @@ def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> i
 
 def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -> str:
     """Generate a friendly port name."""
-    # Slot:X Port:Y format (common in enterprise switches)
+    # Slot:X Port:Y format
     if "slot:" in descr_lower and "port:" in descr_lower:
         match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
         if match:
@@ -478,9 +477,9 @@ def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -
     if "port " in descr_lower:
         return descr_clean
     
-    # Standard interface names (eth0, ge.1.1, swp1, xe.0.1)
+    # Standard interface names
     if descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
         return descr_clean
     
-    # Fallback to logical port number
+    # Fallback
     return f"Port {logical_port}"
