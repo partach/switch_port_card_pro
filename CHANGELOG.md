@@ -1,9 +1,11 @@
 ## Changelog
 
-### [0.9.1] - Small fixes
-- Manufacturer naming
+### [0.9.2] - Small fixes
+- New port detection to include even more exotic corporate grade switch(es)
+- IfHighSpeed can now correctly be used (is factor of 1.000.000 smaller in reporting then IfSpeed)
 - Card updates:
   - Fix Mbps always displaying even when Gbps should be displayed
+  - Small hidden setting trucate_text=false if you dont want the UI to shorten your port names
 
 ### [0.9.1] - Compatibility update
 - More switches now supported in auto port detection
