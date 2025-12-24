@@ -235,6 +235,13 @@ async def discover_physical_ports(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
         )
         _LOGGER.debug("ifType data from %s with info:\n%s", host, type_data)
+        # high speed data
+        speed_data = await async_snmp_walk(
+            hass, host, community, "1.3.6.1.2.1.2.2.1.5", mp_model=mp_model
+        )
+        high_speed_data = await async_snmp_walk(
+            hass, host, community, "1.3.6.1.2.1.31.1.1.1.15", mp_model=mp_model
+        )
         # Step 3: Get sysDescr for manufacturer info
         sys_descr_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.1.1.0", mp_model=mp_model
@@ -329,8 +336,18 @@ async def discover_physical_ports(
                 detection = "type"
             else:
                 is_sfp = False
-           
+                
+            # === Port speed ===
+            speed_mbps = 0
+            raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
+            raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
+            if raw_high:
+                speed_mbps = int(raw_high)
+            elif raw_speed:
+                speed_mbps = int(raw_speed) // 1_000_000
+                
             is_copper = not is_sfp
+            
             # === STEP 4: Friendly name generation ===
             if "slot:" in descr_lower and "port:" in descr_lower:
                 match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
@@ -354,6 +371,7 @@ async def discover_physical_ports(
                 "is_sfp": is_sfp,
                 "is_copper": is_copper,
                 "detection": detection,
+                "speed_mbps": speed_mbps,
                 "manufacturer": manufacturer,
             }
             logical_port += 1
