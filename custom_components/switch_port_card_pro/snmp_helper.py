@@ -217,9 +217,9 @@ async def discover_physical_ports(
     Auto-discover real physical ports and perfectly classify copper vs SFP/SFP+.
     Works on: Zyxel, TP-Link, QNAP, Ubiquiti, Cisco, ASUS, MikroTik, Netgear, D-Link, etc.
     """
-   
     mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
+    
     try:
         # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
@@ -228,35 +228,33 @@ async def discover_physical_ports(
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
             return {}
-        else:
-            _LOGGER.debug("ifDescr data from %s with info:\n%s", host, descr_data)
+        
+        _LOGGER.debug("ifDescr data from %s with info:\n%s", host, descr_data)
+        
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
         )
         _LOGGER.debug("ifType data from %s with info:\n%s", host, type_data)
-        # high speed data
+        
+        # Step 3: Get speed data
         speed_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.2.2.1.5", mp_model=mp_model
         )
         high_speed_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.31.1.1.1.15", mp_model=mp_model
         )
-        # Step 3: Get sysDescr for manufacturer info
+        
+        # Step 4: Get sysDescr for manufacturer info
         sys_descr_data = await async_snmp_walk(
             hass, host, community, "1.3.6.1.2.1.1.1.0", mp_model=mp_model
         )
         sys_descr = list(sys_descr_data.values())[0] if sys_descr_data else "Unknown"
         _LOGGER.debug("sysDescr from %s: %s", host, sys_descr)
-       
+        
         # Extract manufacturer from sysDescr
-        # Common patterns: "H3C S3100-26C, Software Version 5.20 Release 1602" → "H3C"
-        # "Cisco WS-C2960X-24TS-L" → "Cisco"
-        # Use regex or string split – keep it simple
-        manufacturer = sys_descr.split(" ")[0] if sys_descr else "Unknown"
-        if "Version" in manufacturer or "Software" in manufacturer:
-            manufacturer = "Unknown"
-
+        manufacturer = _extract_manufacturer(sys_descr)
+        
         for oid_str, descr_raw in descr_data.items():
             try:
                 # Extract ifIndex from the end of the OID
@@ -265,105 +263,28 @@ async def discover_physical_ports(
                 descr_lower = descr_clean.lower()
             except (ValueError, IndexError, AttributeError):
                 continue
+            
             # === STEP 1: Reject obvious virtual/junk interfaces ===
-            if any(x in descr_lower for x in ["cpu interface", "link aggregate", "logical-int"]):
+            if _is_virtual_interface(descr_lower):
                 continue
-           
-            # Patterns that should match at word start
-            word_start_bad = [r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb',
-                             r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl',
-                             r'\bip6gre', r'\bwds', r'\bloopback', r'\bpo\d+']
-            if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
-                continue
-           
-            # Patterns that need exact word match
-            exact_word_bad = [r'\blo\b', r'\bbr\b', r'\bdummy\b', r'\bwlan\b',
-                             r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b',
-                             r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b',
-                             r'\bsit\b', r'\bipip\b', r'\bbcmsw\b', r'\bspu\b']
-            if any(re.search(pattern, descr_lower) for pattern in exact_word_bad):
-                continue
+            
             # === STEP 2: Accept anything that looks like a real port ===
-            is_likely_physical = (
-                any(k in descr_lower for k in [
-                    "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp",
-                    "gigabit", "fasteth", "10g", "slot:", "level",
-                ]) or
-                re.match(r'^gigabithethernet\d+', descr_lower) or
-                re.match(r'^[pg]\d+$', descr_lower) or
-                (descr_lower.startswith("slot:") and "port:" in descr_lower)
-            )
-            # Special case: single-digit descriptions are ambiguous
-            # Only accept if ifIndex is reasonable (< 1000) AND no other indicators of virtual
-            if descr_clean.isdigit():
-                # If it's just a digit and ifIndex is very high, likely virtual
-                if if_index >= 1000:
-                    continue
-                # Otherwise treat as potentially physical
-                is_likely_physical = True
+            is_likely_physical = _is_physical_interface(descr_lower, descr_clean, if_index)
+            
             if not is_likely_physical:
                 continue
+            
             # === STEP 3: SFP vs Copper detection ===
-            # Attempt to find the type for this specific index
-            raw_type = "0"
-            for t_oid, t_val in type_data.items():
-                if t_oid.endswith(f".{if_index}"):
-                    raw_type = t_val
-                    break
-           
-            try:
-                # Handle types if they come back as strings like "ethernetCsmacd(6)"
-                if '(' in str(raw_type):
-                    match_type = re.search(r'\((\d+)\)', str(raw_type))
-                    if_type = int(match_type.group(1)) if match_type else 0
-                else:
-                    if_type = int(raw_type)
-            except (ValueError, TypeError):
-                if_type = 0
-            is_sfp_by_type = if_type in (56, 161, 171, 172)
-           
-            is_sfp_by_name = any(k in descr_lower for k in [
-                "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase", "10g",
-                "mini-gbic", "sfp+", "sfp28"
-            ])
-           
-            detection = "heuristic"
-            if is_sfp_by_name:
-                is_sfp = True
-                detection = "name"
-            elif is_sfp_by_type:
-                is_sfp = True
-                detection = "type"
-            else:
-                is_sfp = False
-                
-            # === Port speed ===
-            speed_mbps = 0
-            raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
-            raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
-            if raw_high:
-                speed_mbps = int(raw_high)
-            elif raw_speed:
-                speed_mbps = int(raw_speed) // 1_000_000
-                
+            if_type = _get_interface_type(type_data, if_index)
+            is_sfp, detection = _detect_sfp_port(if_type, descr_lower)
             is_copper = not is_sfp
             
-            # === STEP 4: Friendly name generation ===
-            if "slot:" in descr_lower and "port:" in descr_lower:
-                match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
-                name = f"Port {match.group(1)}" if match else f"Port {logical_port}"
-            elif descr_clean.isdigit():
-                name = f"Port {descr_clean}"
-            elif "gigabithethernet" in descr_lower:
-                # Cisco extraction: gigabithethernet1 -> Port 1
-                match = re.search(r'(\d+)$', descr_lower)
-                name = f"Port {match.group(1)}" if match else descr_clean
-            elif "port " in descr_lower:
-                name = descr_clean
-            elif descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
-                name = descr_clean
-            else:
-                name = f"Port {logical_port}"
+            # === STEP 4: Port speed ===
+            speed_mbps = _get_port_speed(speed_data, high_speed_data, if_index)
+            
+            # === STEP 5: Friendly name generation ===
+            name = _generate_port_name(descr_clean, descr_lower, logical_port)
+            
             mapping[logical_port] = {
                 "if_index": if_index,
                 "name": name,
@@ -375,6 +296,7 @@ async def discover_physical_ports(
                 "manufacturer": manufacturer,
             }
             logical_port += 1
+        
         copper_count = sum(1 for p in mapping.values() if p["is_copper"])
         sfp_count = len(mapping) - copper_count
         _LOGGER.info(
@@ -382,8 +304,170 @@ async def discover_physical_ports(
             len(mapping), host, copper_count, sfp_count, manufacturer
         )
         return mapping
+        
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        _LOGGER.debug("Failed to auto-discover ports on %s: %s", host, exc)
+        _LOGGER.exception("Failed to auto-discover ports on %s: %s", host, exc)
         return {}
+
+
+def _extract_manufacturer(sys_descr: str) -> str:
+    """Extract manufacturer name from sysDescr string."""
+    if not sys_descr or sys_descr == "Unknown":
+        return "Unknown"
+    
+    # Common patterns: "H3C S3100-26C, Software Version..." → "H3C"
+    first_word = sys_descr.split(" ")[0]
+    
+    # Reject common non-manufacturer words
+    if first_word.lower() in ("version", "software", "hardware", "release", "build"):
+        return "Unknown"
+    
+    return first_word
+
+
+def _is_virtual_interface(descr_lower: str) -> bool:
+    """Check if interface description indicates a virtual interface."""
+    # Quick rejections first
+    if any(x in descr_lower for x in ["cpu interface", "link aggregate", "logical-int"]):
+        return True
+    
+    # Patterns that should match at word start
+    word_start_bad = [
+        r'\bvlan', r'\btun', r'\bgre', r'\bimq', r'\bifb',
+        r'\berspan', r'\bip_vti', r'\bip6_vti', r'\bip6tnl',
+        r'\bip6gre', r'\bwds', r'\bloopback', r'\bpo\d+'
+    ]
+    if any(re.search(pattern, descr_lower) for pattern in word_start_bad):
+        return True
+    
+    # Patterns that need exact word match
+    exact_word_bad = [
+        r'\blo\b', r'\bbr\b', r'\bdummy\b', r'\bwlan\b',
+        r'\bath\b', r'\bwifi\b', r'\bwl\b', r'\bbond\b',
+        r'\bveth\b', r'\bbridge\b', r'\bvirtual\b', r'\bnull\b',
+        r'\bsit\b', r'\bipip\b', r'\bbcmsw\b', r'\bspu\b'
+    ]
+    return any(re.search(pattern, descr_lower) for pattern in exact_word_bad)
+
+
+def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) -> bool:
+    """Check if interface description indicates a physical interface."""
+    # Check for common physical port indicators
+    is_likely_physical = (
+        any(k in descr_lower for k in [
+            "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp",
+            "gigabit", "fasteth", "10g", "slot:", "level",
+        ]) or
+        re.match(r'^gigabithethernet\d+', descr_lower) or
+        re.match(r'^[pg]\d+$', descr_lower) or
+        (descr_lower.startswith("slot:") and "port:" in descr_lower)
+    )
+    
+    # Special case: single-digit descriptions
+    if descr_clean.isdigit():
+        # If ifIndex is very high, likely virtual
+        if if_index >= 1000:
+            return False
+        # Otherwise treat as potentially physical
+        return True
+    
+    return is_likely_physical
+
+
+def _get_interface_type(type_data: dict, if_index: int) -> int:
+    """Extract interface type from SNMP data."""
+    raw_type = "0"
+    
+    for t_oid, t_val in type_data.items():
+        if t_oid.endswith(f".{if_index}"):
+            raw_type = t_val
+            break
+    
+    try:
+        # Handle types like "ethernetCsmacd(6)"
+        if '(' in str(raw_type):
+            match_type = re.search(r'\((\d+)\)', str(raw_type))
+            return int(match_type.group(1)) if match_type else 0
+        return int(raw_type)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
+    """
+    Detect if port is SFP/fiber based on type and name.
+    
+    Returns:
+        tuple: (is_sfp: bool, detection_method: str)
+    """
+    # Type-based detection (most reliable)
+    # 56=fiberchannel, 161=ieee8023adLag, 171=sdsl, 172=vdsl
+    # Actually for fiber: 56, and various vendor-specific
+    is_sfp_by_type = if_type in (56, 161, 171, 172)
+    
+    # Name-based detection
+    is_sfp_by_name = any(k in descr_lower for k in [
+        "sfp", "fiber", "fibre", "optical", "1000base-x", "10gbase", "10g",
+        "mini-gbic", "sfp+", "sfp28"
+    ])
+    
+    if is_sfp_by_name:
+        return True, "name"
+    elif is_sfp_by_type:
+        return True, "type"
+    else:
+        return False, "heuristic"
+
+
+def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> int:
+    """Get port speed in Mbps."""
+    # Try high-speed first (ifHighSpeed - more accurate for Gigabit+)
+    raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
+    if raw_high:
+        try:
+            return int(raw_high)
+        except (ValueError, TypeError):
+            pass
+    
+    # Fall back to regular speed (ifSpeed)
+    raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
+    if raw_speed:
+        try:
+            return int(raw_speed) // 1_000_000
+        except (ValueError, TypeError):
+            pass
+    
+    return 0
+
+
+def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -> str:
+    """Generate a friendly port name."""
+    # Slot:X Port:Y format (common in enterprise switches)
+    if "slot:" in descr_lower and "port:" in descr_lower:
+        match = re.search(r"port:\s*(\d+)", descr_lower, re.IGNORECASE)
+        if match:
+            return f"Port {match.group(1)}"
+    
+    # Pure numeric description
+    if descr_clean.isdigit():
+        return f"Port {descr_clean}"
+    
+    # Cisco GigabitEthernet format
+    if "gigabithethernet" in descr_lower:
+        match = re.search(r'(\d+)$', descr_lower)
+        if match:
+            return f"Port {match.group(1)}"
+        return descr_clean
+    
+    # Already has "port" in name
+    if "port " in descr_lower:
+        return descr_clean
+    
+    # Standard interface names (eth0, ge.1.1, swp1, xe.0.1)
+    if descr_lower.startswith(("eth", "ge.", "swp", "xe.")):
+        return descr_clean
+    
+    # Fallback to logical port number
+    return f"Port {logical_port}"
