@@ -7,6 +7,7 @@
 [![HACS validated](https://img.shields.io/badge/HACS-validated-41BDF5?style=flat-square)](https://github.com/hacs/integration)
 
 This Home Assistant integration (Card installed separately, see below) shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
+
 Any remarks or questions? Please see our Discussion corner on GitHub
 
 <p align="center">
