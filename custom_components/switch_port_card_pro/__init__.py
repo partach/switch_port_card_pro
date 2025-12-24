@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-# from pathlib import Path
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -11,7 +10,7 @@ from homeassistant.helpers import config_validation as cv
 from .sensor import SwitchPortCoordinator
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.frontend import add_extra_js_url
-#import asyncio
+
 from .snmp_helper import (
     discover_physical_ports,
 )
@@ -26,6 +25,7 @@ from .const import (
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
 )
+
 _LOGGER = logging.getLogger(__name__)
 
 # Required for config-flow-only integrations
@@ -33,9 +33,9 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-
 CARD_URL = f"/{DOMAIN}/switch-port-card-pro.js"
 CARD_JS = f"custom_components/{DOMAIN}/frontend/switch-port-card-pro.js"
+
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
@@ -67,15 +67,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # === PORT DISCOVERY WITH SMART FALLBACK ===
     detected = None
     ports = None
+    manufacturer = "Unknown"
     is_first_install = CONF_PORTS not in entry.options
     
     # Always TRY to detect ports (even if user configured manually)
-    # This gives us interface names and SFP detection when it works
+    # This gives us interface names, SFP detection, speeds, and manufacturer
     try:
         detected = await discover_physical_ports(hass, host, community, mp_model)
         if detected:
             all_ports = sorted(int(p) for p in detected.keys())
-            _LOGGER.debug("Port detection successful on %s: %d ports found", host, len(all_ports))
+            
+            # Extract manufacturer from first port (all ports have same manufacturer)
+            manufacturer = next(iter(detected.values())).get("manufacturer", "Unknown")
+            
+            # Log detailed discovery results
+            copper_count = sum(1 for p in detected.values() if p.get("is_copper"))
+            sfp_count = len(detected) - copper_count
+            speed_summary = _summarize_port_speeds(detected)
+            
+            _LOGGER.info(
+                "Port detection successful on %s (%s): %d ports found → "
+                "%d copper, %d SFP/SFP+ | Speeds: %s",
+                host, manufacturer, len(all_ports), copper_count, sfp_count, speed_summary
+            )
         else:
             _LOGGER.debug("Port detection returned no results on %s", host)
     except Exception as err:
@@ -91,13 +105,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_options = dict(entry.options)
             new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
             
+            # Store SFP port range
             sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
             if sfp_ports:
                 new_options["sfp_ports_start"] = min(sfp_ports)
+                new_options["sfp_ports_end"] = max(sfp_ports)
+            
+            # Store manufacturer and detection metadata
+            new_options["manufacturer"] = manufacturer
+            new_options["auto_detected"] = True
+            new_options["detection_method"] = _get_detection_summary(detected)
             
             hass.config_entries.async_update_entry(entry, options=new_options)
-            _LOGGER.info("First install: auto-configured %d ports on %s (SFP starts at %s)", 
-                       len(all_ports), host, new_options.get("sfp_ports_start", "none"))
+            
+            _LOGGER.info(
+                "First install: auto-configured %d ports on %s (%s) | SFP: %s | Detection: %s", 
+                len(all_ports), host, manufacturer,
+                f"ports {min(sfp_ports)}-{max(sfp_ports)}" if sfp_ports else "none",
+                new_options["detection_method"]
+            )
             
             ports = all_ports.copy()
         else:
@@ -105,7 +131,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ports = list(range(1, 9))
             new_options = dict(entry.options)
             new_options[CONF_PORTS] = ports
-            new_options["detection_failed"] = True  # Flag to show warning in UI
+            new_options["detection_failed"] = True
+            new_options["manufacturer"] = "Unknown"
+            new_options["auto_detected"] = False
             hass.config_entries.async_update_entry(entry, options=new_options)
             
             _LOGGER.warning(
@@ -118,11 +146,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         user_ports = entry.options.get(CONF_PORTS, list(range(1, 9)))
         
         if detected:
-            # Detection worked - we can use it for interface names/SFP info
-            # But respect user's port count preference
+            # Detection worked - update manufacturer info and validate port config
+            new_options = dict(entry.options)
+            
+            # Update manufacturer if it changed or was unknown
+            if manufacturer != "Unknown":
+                old_manufacturer = entry.options.get("manufacturer", "Unknown")
+                if old_manufacturer != manufacturer:
+                    new_options["manufacturer"] = manufacturer
+                    _LOGGER.info("Updated manufacturer for %s: %s → %s", 
+                               host, old_manufacturer, manufacturer)
+            
+            # Validate user's port configuration against detection
             all_detected = sorted(int(p) for p in detected.keys())
             if isinstance(user_ports, list) and user_ports:
                 max_user_port = max(user_ports)
+                
+                # Warn if user configured more ports than detected
+                if max_user_port > len(all_detected):
+                    _LOGGER.warning(
+                        "User configured %d ports on %s, but only %d detected. "
+                        "Extra ports may not work correctly.",
+                        max_user_port, host, len(all_detected)
+                    )
+                
                 # Use detected ports up to user's limit
                 ports = [p for p in all_detected if p <= max_user_port]
                 
@@ -131,11 +178,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     ports.extend(range(max(all_detected) + 1, max_user_port + 1))
             else:
                 ports = all_detected.copy()
+            
+            # Update options if anything changed
+            if new_options != entry.options:
+                hass.config_entries.async_update_entry(entry, options=new_options)
         else:
             # Detection failed - use user's manual config (no warning after first time)
             ports = user_ports if isinstance(user_ports, list) else list(range(1, 9))
+            manufacturer = entry.options.get("manufacturer", "Unknown")
+            
             # Only log at debug level - this is normal for some switches
-            _LOGGER.debug("Using manually configured ports on %s (%d ports)", host, len(ports))
+            _LOGGER.debug(
+                "Using manually configured ports on %s (%d ports) - detection unavailable",
+                host, len(ports)
+            )
 
     # Build OID sets
     base_oids = {
@@ -161,10 +217,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create coordinator
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, snmp_version, include_vlans, update_seconds
+        hass, host, community, ports, base_oids, system_oids, 
+        snmp_version, include_vlans, update_seconds
     )
     coordinator.device_name = entry.title
     coordinator.port_mapping = detected or {}  # Empty dict if detection failed
+    coordinator.manufacturer = manufacturer
     coordinator.config_entry = entry
     coordinator.update_interval = timedelta(seconds=update_seconds)
 
@@ -180,14 +238,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     return True
+
+
+def _summarize_port_speeds(detected: dict) -> str:
+    """
+    Summarize port speeds for logging.
     
+    Example output: "8×1000Mbps, 2×10000Mbps"
+    """
+    speed_counts = {}
+    for port_info in detected.values():
+        speed = port_info.get("speed_mbps", 0)
+        if speed > 0:
+            speed_counts[speed] = speed_counts.get(speed, 0) + 1
+    
+    if not speed_counts:
+        return "unknown speeds"
+    
+    # Sort by speed for consistent output
+    parts = [f"{count}×{speed}Mbps" for speed, count in sorted(speed_counts.items())]
+    return ", ".join(parts)
+
+
+def _get_detection_summary(detected: dict) -> str:
+    """
+    Get summary of detection methods used.
+    
+    Example output: "8 by name, 2 by type"
+    """
+    method_counts = {}
+    for port_info in detected.values():
+        method = port_info.get("detection", "unknown")
+        method_counts[method] = method_counts.get(method, 0) + 1
+    
+    parts = [f"{count} by {method}" for method, count in sorted(method_counts.items())]
+    return ", ".join(parts) if parts else "manual"
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
-    
+
+
 async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Called when options are changed — force full reload."""
+    """Called when options are changed – force full reload."""
     await hass.config_entries.async_reload(entry.entry_id)
