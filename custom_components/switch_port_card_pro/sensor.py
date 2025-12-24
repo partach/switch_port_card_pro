@@ -229,11 +229,12 @@ class SwitchPortBaseEntity(SensorEntity):
         self.entry_id = entry_id
 
         # STATIC DEVICE INFO (never changes)
+        sys_info = coordinator.data.system if coordinator.data else {}
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
             connections=set(),
             name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
-            manufacturer=info.get("manufacturer") or "Generic SNMP",
+            manufacturer=sys_info.get("manufacturer") or "Generic SNMP",
             model=sys_info.get("model") or f"{entry_id}",          # updated dynamically later
             sw_version=sys_info.get("firmware"),          # updated dynamically later
         )
