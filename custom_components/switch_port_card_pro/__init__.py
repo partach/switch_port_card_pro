@@ -67,18 +67,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # === PORT DISCOVERY WITH SMART FALLBACK ===
     detected = None
     ports = None
-    manufacturer = "Unknown"
+    manufacturer = "Unknown"  # Initialize here, outside try block
+    detection_summary = "manual"  # Initialize here too
     is_first_install = CONF_PORTS not in entry.options
     
-    # Always TRY to detect ports (even if user configured manually)
-    # This gives us interface names, SFP detection, speeds, and manufacturer
     try:
         detected = await discover_physical_ports(hass, host, community, mp_model)
         if detected:
-            all_ports = sorted(int(p) for p in detected.keys())
+            # --- EXTRACT METADATA ---
+            # Get a sample port to pull device-wide info (all ports share the same device info)
+            sample_info = next(iter(detected.values()))
+            manufacturer = sample_info.get("manufacturer", "Unknown")
+            detection_summary = _get_detection_summary(detected)
             
-            # Extract manufacturer from first port (all ports have same manufacturer)
-            manufacturer = next(iter(detected.values())).get("manufacturer", "Unknown")
+            all_ports = sorted(int(p) for p in detected.keys())
             
             # Log detailed discovery results
             copper_count = sum(1 for p in detected.values() if p.get("is_copper"))
@@ -87,8 +89,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
             _LOGGER.info(
                 "Port detection successful on %s (%s): %d ports found → "
-                "%d copper, %d SFP/SFP+ | Speeds: %s",
-                host, manufacturer, len(all_ports), copper_count, sfp_count, speed_summary
+                "%d copper, %d SFP/SFP+ | Speeds: %s | Detection: %s",
+                host, manufacturer, len(all_ports), copper_count, sfp_count, 
+                speed_summary, detection_summary
             )
         else:
             _LOGGER.debug("Port detection returned no results on %s", host)
@@ -98,12 +101,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # === CONFIGURE PORTS ===
     if is_first_install:
-        # First time setup
+        new_options = dict(entry.options)
+        
         if detected:
             # Auto-configure from detection
             all_ports = sorted(int(p) for p in detected.keys())
-            new_options = dict(entry.options)
-            new_options[CONF_PORTS] = list(range(1, len(all_ports) + 1))
+            new_options[CONF_PORTS] = all_ports
             
             # Store SFP port range
             sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
@@ -111,54 +114,59 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 new_options["sfp_ports_start"] = min(sfp_ports)
                 new_options["sfp_ports_end"] = max(sfp_ports)
             
-            # Store manufacturer and detection metadata
             new_options["manufacturer"] = manufacturer
             new_options["auto_detected"] = True
-            new_options["detection_method"] = _get_detection_summary(detected)
-            
-            hass.config_entries.async_update_entry(entry, options=new_options)
+            new_options["detection_method"] = detection_summary
             
             _LOGGER.info(
                 "First install: auto-configured %d ports on %s (%s) | SFP: %s | Detection: %s", 
                 len(all_ports), host, manufacturer,
                 f"ports {min(sfp_ports)}-{max(sfp_ports)}" if sfp_ports else "none",
-                new_options["detection_method"]
+                detection_summary
             )
-            
             ports = all_ports.copy()
         else:
-            # Detection failed on first install - use defaults and warn user ONCE
+            # Fallback for failed detection on first install
             ports = list(range(1, 9))
-            new_options = dict(entry.options)
             new_options[CONF_PORTS] = ports
             new_options["detection_failed"] = True
             new_options["manufacturer"] = "Unknown"
             new_options["auto_detected"] = False
-            hass.config_entries.async_update_entry(entry, options=new_options)
+            new_options["detection_method"] = "failed"
             
             _LOGGER.warning(
                 "Port detection failed on %s during initial setup. "
                 "Using default 8 ports. Please configure manually if incorrect.",
                 host
             )
+        
+        hass.config_entries.async_update_entry(entry, options=new_options)
+    
     else:
-        # Already configured - use user's settings
+        # Already configured - Update metadata if we have fresh detection results
         user_ports = entry.options.get(CONF_PORTS, list(range(1, 9)))
         
         if detected:
-            # Detection worked - update manufacturer info and validate port config
             new_options = dict(entry.options)
             
-            # Update manufacturer if it changed or was unknown
-            if manufacturer != "Unknown":
-                old_manufacturer = entry.options.get("manufacturer", "Unknown")
-                if old_manufacturer != manufacturer:
-                    new_options["manufacturer"] = manufacturer
-                    _LOGGER.info("Updated manufacturer for %s: %s → %s", 
-                               host, old_manufacturer, manufacturer)
+            # Extract manufacturer from detection
+            sample_info = next(iter(detected.values()))
+            manufacturer = sample_info.get("manufacturer", "Unknown")
+            detection_summary = _get_detection_summary(detected)
             
-            # Validate user's port configuration against detection
+            # 1. Update Manufacturer if it was unknown or changed
+            old_manufacturer = entry.options.get("manufacturer", "Unknown")
+            if manufacturer != "Unknown" and old_manufacturer != manufacturer:
+                new_options["manufacturer"] = manufacturer
+                _LOGGER.info("Updated manufacturer for %s: %s → %s", 
+                           host, old_manufacturer, manufacturer)
+            
+            # 2. Update detection metadata
+            new_options["detection_method"] = detection_summary
+            
+            # 3. Port validation and configuration
             all_detected = sorted(int(p) for p in detected.keys())
+            
             if isinstance(user_ports, list) and user_ports:
                 max_user_port = max(user_ports)
                 
@@ -177,17 +185,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if max_user_port > max(all_detected):
                     ports.extend(range(max(all_detected) + 1, max_user_port + 1))
             else:
+                # User didn't configure specific ports, use all detected
                 ports = all_detected.copy()
             
-            # Update options if anything changed
+            # Update SFP port range if detected
+            sfp_ports = [p for p, info in detected.items() if info.get("is_sfp")]
+            if sfp_ports:
+                new_options["sfp_ports_start"] = min(sfp_ports)
+                new_options["sfp_ports_end"] = max(sfp_ports)
+            
+            # Only update entry if something changed
             if new_options != entry.options:
                 hass.config_entries.async_update_entry(entry, options=new_options)
+                _LOGGER.debug("Updated config entry metadata for %s", host)
         else:
-            # Detection failed - use user's manual config (no warning after first time)
+            # Detection failed - use user's manual config
             ports = user_ports if isinstance(user_ports, list) else list(range(1, 9))
             manufacturer = entry.options.get("manufacturer", "Unknown")
             
-            # Only log at debug level - this is normal for some switches
             _LOGGER.debug(
                 "Using manually configured ports on %s (%d ports) - detection unavailable",
                 host, len(ports)
