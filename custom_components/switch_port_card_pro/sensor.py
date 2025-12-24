@@ -147,9 +147,12 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 
                 # Use the real if_index for all lookups
                 if any(if_index in t for t in (status, speed, rx, tx, poe_power)):
+                    HighLowSpeed = speed.get(if_index, 0)
+                    if HighLowSpeed < 100000: # check if we use the 32 or 64 bit variant
+                        HighLowSpeed = HighLowSpeed * 1000000 # convert to bps
                     ports_data[p].update({
                         "status": "on" if status.get(if_index, 2) == 1 else "off",
-                        "speed": speed.get(if_index, 0),
+                        "speed": HighLowSpeed,
                         "rx": rx.get(if_index, 0),
                         "tx": tx.get(if_index, 0),
                         "name": name.get(if_index, f"Port {port}"),
@@ -230,9 +233,9 @@ class SwitchPortBaseEntity(SensorEntity):
             identifiers={(DOMAIN, f"{entry_id}_{self.coordinator.host}")},
             connections=set(),
             name=f"Switch {self.coordinator.host}",  # temporary before SNMP poll
-            manufacturer="",
-            model=f"{entry_id}",          # updated dynamically later
-            sw_version=None,          # updated dynamically later
+            manufacturer=info.get("manufacturer") or "Generic SNMP",
+            model=sys_info.get("model") or f"{entry_id}",          # updated dynamically later
+            sw_version=sys_info.get("firmware"),          # updated dynamically later
         )
 
         # Auto update entity state when coordinator updates
