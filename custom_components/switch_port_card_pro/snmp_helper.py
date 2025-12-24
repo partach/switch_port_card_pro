@@ -261,10 +261,13 @@ async def discover_physical_ports(
         try:
             if_index = int(oid_str.split(".")[-1])
             descr_clean, descr_lower = descr_raw.strip(), descr_raw.strip().lower()
-        except Exception: continue
+        except Exception: 
+            continue
         
-        if _is_virtual_interface(descr_lower): continue
-        if not _is_physical_interface(descr_lower, descr_clean, if_index): continue
+        if _is_virtual_interface(descr_lower): 
+            continue
+        if not _is_physical_interface(descr_lower, descr_clean, if_index): 
+            continue
         
         if_type = _get_interface_type(type_data, if_index)
         is_sfp, detection = _detect_sfp_port(if_type, descr_lower)
@@ -402,12 +405,14 @@ def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> i
     raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
     if raw_high:
         try: return int(raw_high)
-        except (ValueError, TypeError): pass
+        except (ValueError, TypeError): 
+            pass
     
     raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
     if raw_speed:
         try: return int(raw_speed) // 1_000_000
-        except (ValueError, TypeError): pass
+        except (ValueError, TypeError): 
+            pass
     
     return 0
 
