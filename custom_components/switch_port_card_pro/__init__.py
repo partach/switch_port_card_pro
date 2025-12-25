@@ -1,6 +1,7 @@
 """Switch Port Card Pro integration - __init__.py"""
 from __future__ import annotations
-
+import os
+import shutil
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -52,7 +53,37 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         _LOGGER.warning("Frontend registration failed for: %s Error: %s", CARD_JS, err)
     return True
 
+async def async_install_frontend_resource(hass: HomeAssistant):
+    """Ensure the frontend JS file is copied to the www/community folder."""
+    
+    def install():
+        # Source path: custom_components/switch_port_card_pro/frontend/switch-port-card-pro.js
+        source_path = hass.config.path("custom_components", DOMAIN, "frontend", "switch-port-card-pro.js")
+        
+        # Target path: www/community/switch_port_card_pro/
+        target_dir = hass.config.path("www", "community", DOMAIN)
+        target_path = os.path.join(target_dir, "switch-port-card-pro.js")
 
+        try:
+            # 1. Ensure the destination directory exists
+            if not os.path.exists(target_dir):
+                _LOGGER.debug("Creating directory: %s", target_dir)
+                os.makedirs(target_dir, exist_ok=True)
+
+            # 2. Check if source exists and copy
+            if os.path.exists(source_path):
+                # Using copy2 to preserve metadata (timestamps)
+                shutil.copy2(source_path, target_path)
+                _LOGGER.info("Updated frontend resource: %s", target_path)
+            else:
+                _LOGGER.warning("Frontend source file missing at %s", source_path)
+                
+        except Exception as err:
+            _LOGGER.error("Failed to install frontend resource: %s", err)
+
+    # Offload the blocking file operations to the executor thread
+    await hass.async_add_executor_job(install)
+    
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
     hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -251,7 +282,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
-
+    await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
     return True
 
 
