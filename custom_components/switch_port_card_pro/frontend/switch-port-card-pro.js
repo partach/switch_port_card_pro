@@ -138,7 +138,7 @@ class SwitchPortCardPro extends HTMLElement {
         }
         :host{display:block;color:var(--primary-text-color);padding:1px;border-radius:var(--ha-card-border-radius,12px);font-family:var(--ha-font-family,Roboto)}
         .header{display:flex;padding: 6px 8px;justify-content:space-between;align-items:center;margin-bottom:2px;font-size:1.2em;font-weight:600}
-        .system-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:20px 0 8px 0}
+        .system-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin:10px 0 8px 0}
         .info-box{background:rgba(var(--rgb-card-background-color,255,255,255),0.08);backdrop-filter:blur(8px);padding:7px 9px;border-radius:10px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.12)}
         .info-value{font-size:1.05em;font-weight:bold;line-height:1.05;margin:0}
         .info-label{font-size:0.8em;opacity:0.8;color:var(--secondary-text-color);line-height:1.2;margin-top:1px}
@@ -149,10 +149,10 @@ class SwitchPortCardPro extends HTMLElement {
           height: 0 !important;
         }
         .gauge-fill{height:100%;background:linear-gradient(90deg,var(--label-badge-green,#4caf50),var(--label-badge-yellow,#ff9800) 50%,var(--label-badge-red,#f44336));background-size:300% 100%;width:100%;transition:background-position .8s ease}
-        .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:4px 0 4px;text-align:center;width:100%}
+        .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:2px 0 4px;text-align:center;width:100%}
         .ports-grid {
           display: grid;
-          padding: 4px 0;
+          padding: 2px 0;
           gap: 3px;
           grid-template-columns: repeat(auto-fit, minmax(var(--port-min-width, 50px), 1fr));
           --port-min-width: 50px;
@@ -188,7 +188,7 @@ class SwitchPortCardPro extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
+          gap: 4px;
           width: 100%;
           line-height: 1;
           flex-shrink: 0;
@@ -206,7 +206,7 @@ class SwitchPortCardPro extends HTMLElement {
           text-overflow: ellipsis;
           text-align: center;
           flex: 1;
-          margin-top: 2px;
+          margin-top: -2px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -214,8 +214,9 @@ class SwitchPortCardPro extends HTMLElement {
         .system-box {
           background: rgba(var(--rgb-card-background-color,255,255,255),0.08);
           backdrop-filter: blur(8px);
-          padding: 7px 9px;
-          border-radius: 10px;
+          padding: 3px 3px;
+          margin-top: -10px;
+          border-radius: 8px;
           text-align: center;
           box-shadow: 0 2px 6px rgba(0,0,0,0.12);
           cursor: pointer; /* ← Makes mouse show it's clickable */
@@ -224,7 +225,7 @@ class SwitchPortCardPro extends HTMLElement {
 
         .system-box:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
           background: rgba(var(--rgb-card-background-color,255,255,255),0.15);
         }
         /* Adjust spacing when row3 is hidden */
@@ -1019,6 +1020,6 @@ customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
     name: "Switch Port Card Pro",
     description: "Visualize switch ports", 
     preview: true,
-    preview_url: "custom_components/switch_port_card_pro/frontend/the_card.png"
+    preview_url: "/local/switch_port_card_pro/thecard.png"
   });
 })();
