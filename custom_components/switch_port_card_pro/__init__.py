@@ -61,7 +61,7 @@ async def async_install_frontend_resource(hass: HomeAssistant):
         source_path = hass.config.path("custom_components", DOMAIN, "frontend", "switch-port-card-pro.js")
         
         # Target path: www/community/switch_port_card_pro/
-        target_dir = hass.config.path("www", "community", DOMAIN)
+        target_dir = hass.config.path("www", "community", "switch_port_card_pro_card") # legacy naming
         target_path = os.path.join(target_dir, "switch-port-card-pro.js")
 
         try:
