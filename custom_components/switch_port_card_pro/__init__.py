@@ -90,6 +90,7 @@ async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
     
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""    
+    hass.data[DOMAIN].pop(entry.entry_id, None)
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
     update_seconds = max(3, entry.options.get("update_interval", 20))
