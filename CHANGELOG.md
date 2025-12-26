@@ -1,5 +1,9 @@
-## Changelog
 
+## Changelog
+### [0.9.5] - Auto card registration fix
+- small fix for auto registration that would add another resource allocation on new install (should not be a big issue)
+- Nearing our 1.0.0 release!!
+  
 ### [0.9.3] - Automatic card install and registration
 - Automatic card install and registration!
 - No more need for separate card repository download and install (delete it!)
