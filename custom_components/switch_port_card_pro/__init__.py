@@ -73,7 +73,7 @@ async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
     if not resources.loaded:
         await resources.async_load()
 
-    card_url = f"/hacsfiles/switch_port_card_pro_card/switch-port-card-pro.js?hacstag="
+    card_url = f"/hacsfiles/switch_port_card_pro_card/switch-port-card-pro.js?hacstag=1"
     # Or local: f"/local/custom_cards/{DOMAIN}-card.js"
 
     # Check if already registered
@@ -93,8 +93,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
         _LOGGER.info("Setting up %s", DOMAIN)
-        await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
-        await async_register_card(hass,entry)
+    await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
+    await async_register_card(hass,entry)
 
 
     hass.data[DOMAIN].pop(entry.entry_id, None)
