@@ -1,5 +1,10 @@
 ## Changelog
 
+### [0.9.3] - Automatic card install and registration
+- Automatic card install and registration!
+- No more need for separate card repository download and install (delete it!)
+- Note: you need to delete your previous resource registry entry if you did it manually 
+    
 ### [0.9.2] - Small fixes
 - New port detection to include even more exotic corporate grade switch(es)
 - IfHighSpeed can now correctly be used (is factor of 1.000.000 smaller in reporting then IfSpeed)
