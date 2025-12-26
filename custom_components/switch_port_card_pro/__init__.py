@@ -34,24 +34,6 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-CARD_URL = f"/{DOMAIN}/switch-port-card-pro.js"
-CARD_JS = f"custom_components/{DOMAIN}/frontend/switch-port-card-pro.js"
-
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    hass.data.setdefault(DOMAIN, {})
-
-    try:
-        await hass.http.async_register_static_paths([
-            StaticPathConfig(CARD_URL, hass.config.path(CARD_JS))
-        ])
-        _LOGGER.info("Switch Port Card Pro card served at %s", CARD_JS)
-
-        add_extra_js_url(hass, CARD_URL)
-
-    except Exception as err:
-        _LOGGER.warning("Frontend registration failed for: %s Error: %s", CARD_JS, err)
-    return True
 
 async def async_install_frontend_resource(hass: HomeAssistant):
     """Ensure the frontend JS file is copied to the www/community folder."""
