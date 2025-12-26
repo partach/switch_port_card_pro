@@ -89,7 +89,14 @@ async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.debug("Card registered: %s", card_url)
     
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Switch Port Card Pro from a config entry."""    
+    """Set up Switch Port Card Pro from a config entry."""
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+        _LOGGER.info("Setting up %s", DOMAIN)
+    await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
+    await async_register_card(hass,entry)
+
+
     hass.data[DOMAIN].pop(entry.entry_id, None)
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
@@ -285,8 +292,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
-    await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
-    await async_register_card(hass,entry)
     return True
 
 
