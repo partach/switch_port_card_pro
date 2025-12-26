@@ -307,6 +307,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
     await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
+    await async_register_card(hass,entry)
     return True
 
 
