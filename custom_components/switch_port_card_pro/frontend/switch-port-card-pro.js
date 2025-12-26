@@ -1020,6 +1020,5 @@ customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
     name: "Switch Port Card Pro",
     description: "Visualize switch ports", 
     preview: true,
-    preview_url: "/local/switch_port_card_pro/thecard.png"
   });
 })();
