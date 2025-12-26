@@ -83,6 +83,30 @@ async def async_install_frontend_resource(hass: HomeAssistant):
 
     # Offload the blocking file operations to the executor thread
     await hass.async_add_executor_job(install)
+
+async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
+    """Register the custom card as a Lovelace resource."""
+    resources = hass.data.get("lovelace", {}).get("resources")
+    if not resources:
+        return  # YAML mode or not loaded
+
+    if not resources.loaded:
+        await resources.async_load()
+
+    card_url = f"/hacsfiles/{DOMAIN}/switch-port-card-pro.js?hacstag={entry.entry_id}"
+    # Or local: f"/local/custom_cards/{DOMAIN}-card.js"
+
+    # Check if already registered
+    for item in resources.async_items():
+        if item["url"] == card_url:
+            _LOGGER.debug("Card already registered: %s", card_url)
+            return  # already there
+
+    await resources.async_create_item({
+        "res_type": "module",
+        "url": card_url,
+    })
+    _LOGGER.debug("Card registered: %s", card_url)
     
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
