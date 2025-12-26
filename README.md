@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/partach/switch_port_card_pro?color=ffca28&style=flat-square)](https://github.com/partach/switch_port_card_pro/blob/main/LICENSE)
 [![HACS validated](https://img.shields.io/badge/HACS-validated-41BDF5?style=flat-square)](https://github.com/hacs/integration)
 
-This Home Assistant integration (Card installed separately, see below) shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
+This Home Assistant integration shows the status of your switch ports and includes embedded SNMP integration (no need to setup SNMP seperately via configuration files).
 
 Any remarks or questions? Please see our Discussion corner on GitHub
 
@@ -52,14 +52,10 @@ Options:
 1. Install via HACS
    * This integration including the card <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=partach&repository=switch_port_card_pro"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" width="150" height="75"></a>
     * After HA reboot (Needed for new integrations): choose 'add integration' (in devices and services) and choose `switch_port_card_pro` in the list.
-    * Then you need to register the card that comes with the integration manually:
     
-    URL: `custom_components/switch_port_card_pro/frontend/switch_port_card_pro.js` Resource Type: `Java script`
-    (card will be visible after browser refresh)
-
 2. Install manually:
    * The integration: In UI go to `HACS`--> `custom repositories` --> `Repo`: partach/switch_port_card_pro, `Type`: Integration
-   * The rest same as above (reboot, register card, browser refresh)
+   * Reboot
      
 Let the install config of the integration guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP).
 
