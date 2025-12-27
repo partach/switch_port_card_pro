@@ -15,6 +15,13 @@ from pysnmp.hlapi.v3arch.asyncio import (
     get_cmd,
     walk_cmd,
 )
+from .const import (
+    CONF_OID_IDESCR,
+    CONF_OID_IFTYPE,
+    CONF_OID_IFSPEED,
+    CONF_OID_IFHIGHSPEED,
+    CONF_OID_SYSDESCR,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -221,11 +228,11 @@ async def discover_physical_ports(
     """
     mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
-    
+
     try:
         # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.2", mp_model=mp_model
+            hass, host, community,CONF_OID_IDESCR, mp_model=mp_model
         )
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
@@ -235,21 +242,21 @@ async def discover_physical_ports(
         
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.3", mp_model=mp_model
+            hass, host, community, CONF_OID_IFTYPE, mp_model=mp_model
         )
         _LOGGER.debug("ifType data from %s: %d types found", host, len(type_data))
         
         # Step 3: Get speed data
         speed_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.2.2.1.5", mp_model=mp_model
+            hass, host, community, CONF_OID_IFSPEED, mp_model=mp_model
         )
         high_speed_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.31.1.1.1.15", mp_model=mp_model
+            hass, host, community, CONF_OID_IFHIGHSPEED, mp_model=mp_model
         )
         
         # Step 4: Get sysDescr for manufacturer info
         sys_descr_data = await async_snmp_walk(
-            hass, host, community, "1.3.6.1.2.1.1.1.0", mp_model=mp_model
+            hass, host, community, CONF_OID_SYSDESCR, mp_model=mp_model
         )
         sys_descr = list(sys_descr_data.values())[0] if sys_descr_data else "Unknown"
         _LOGGER.debug("sysDescr from %s: %s", host, sys_descr)
@@ -404,7 +411,6 @@ def _get_interface_type(type_data: dict, if_index: int) -> int:
     except (ValueError, TypeError):
         return 0
 
-
 def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
     """Detect if port is SFP/fiber based on type and name."""
     # Netgear 10G special case
@@ -434,11 +440,10 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
 
     return False, "default_copper"
 
-
 def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> int:
     """Get port speed in Mbps."""
     # Try high-speed first (ifHighSpeed)
-    raw_high = high_speed_data.get(f"1.3.6.1.2.1.31.1.1.1.15.{if_index}")
+    raw_high = high_speed_data.get(f"{CONF_OID_IFHIGHSPEED}.{if_index}")
     if raw_high:
         try:
             return int(raw_high)
@@ -446,7 +451,7 @@ def _get_port_speed(speed_data: dict, high_speed_data: dict, if_index: int) -> i
             pass
     
     # Fall back to regular speed (ifSpeed)
-    raw_speed = speed_data.get(f"1.3.6.1.2.1.2.2.1.5.{if_index}")
+    raw_speed = speed_data.get(f"{CONF_OID_IFSPEED}.{if_index}")
     if raw_speed:
         try:
             return int(raw_speed) // 1_000_000
