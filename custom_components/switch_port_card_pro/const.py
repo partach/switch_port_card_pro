@@ -26,6 +26,11 @@ CONF_OID_MEMORY: Final = "oid_memory"
 CONF_OID_FIRMWARE: Final = "oid_firmware"
 CONF_OID_HOSTNAME: Final = "oid_hostname"
 CONF_OID_UPTIME: Final = "oid_uptime"
+CONF_OID_IDESCR: Final = "1.3.6.1.2.1.2.2.1.2"
+CONF_OID_IFTYPE: Final = "1.3.6.1.2.1.2.2.1.3"
+CONF_OID_IFSPEED: Final = "1.3.6.1.2.1.2.2.1.5"
+CONF_OID_IFHIGHSPEED: Final = "1.3.6.1.2.1.31.1.1.1.15"
+CONF_OID_SYSDESCR: Final = "1.3.6.1.2.1.1.1.0"
 
 SNMP_VERSION_TO_MP_MODEL = {
     "v1": 0,
