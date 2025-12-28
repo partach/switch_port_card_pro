@@ -101,9 +101,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Setting up %s", DOMAIN)
     await async_install_frontend_resource(hass) # copy to card to the location it is supposed to be at.
     await async_register_card(hass,entry)
-
-
-    hass.data[DOMAIN].pop(entry.entry_id, None)
     host = entry.data[CONF_HOST]
     community = entry.data[CONF_COMMUNITY]
     update_seconds = max(3, entry.options.get("update_interval", 20))
