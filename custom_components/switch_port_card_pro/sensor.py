@@ -365,6 +365,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
     _attr_has_entity_name = True
     _attr_should_poll = False
+    
     def __init__(self, coordinator: SwitchPortCoordinator, entry_id: str, port: int) -> None:
         super().__init__(coordinator, entry_id)
         self.port = str(port)
@@ -383,7 +384,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
         if not self.coordinator.data:
             return ""
         try:
-            return coordinator.data.ports.get(self.port, {}).get("status")
+            return self.coordinator.data.ports.get(self.port, {}).get("status")
         except (ValueError, TypeError):
             return ""
 
