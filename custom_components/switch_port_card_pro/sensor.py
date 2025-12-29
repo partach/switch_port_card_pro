@@ -486,7 +486,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
             return attrs
         except Exception as e:
           _LOGGER.debug("Error calculating live traffic for port %s: %s", self.port, e)
-            return {}
+        return {}
 
 # --- System Sensors ---
 
