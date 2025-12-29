@@ -311,7 +311,13 @@ class TotalPoESensor(SwitchPortBaseEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data.system.get("poe_total_watts") if self.coordinator.data else None
+        if not self.coordinator.data:
+            return 0
+        try:
+            val = self.coordinator.data.system.get("poe_total_watts")
+            return float(val) if val is not None else None
+        except (ValueError, TypeError):
+            return 0
         
 class BandwidthSensor(SwitchPortBaseEntity):
     """Total bandwidth sensor."""
@@ -330,7 +336,13 @@ class BandwidthSensor(SwitchPortBaseEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        return self.coordinator.data.bandwidth_mbps if self.coordinator.data else None
+        if not self.coordinator.data:
+            return 0
+        try:
+            val = self.coordinator.data.bandwidth_mbps
+            return float(val) if val is not None else None
+        except (ValueError, TypeError):
+            return 0
 
 class FirmwareSensor(SwitchPortBaseEntity):
     _attr_name = "Firmware"
@@ -342,7 +354,12 @@ class FirmwareSensor(SwitchPortBaseEntity):
 
     @property
     def native_value(self) -> str | None:
-        return self.coordinator.data.system.get("firmware") if self.coordinator.data else None
+        if not self.coordinator.data:
+            return ""
+        try:
+            return self.coordinator.data.system.get("firmware")
+        except (ValueError, TypeError):
+            return ""
         
 class PortStatusSensor(SwitchPortBaseEntity):
     """Port status (on/off) sensor, acting as the primary port entity."""
@@ -364,8 +381,11 @@ class PortStatusSensor(SwitchPortBaseEntity):
     def native_value(self) -> str | None:
         """Return the state (on/off)."""
         if not self.coordinator.data:
-            return None
-        return self.coordinator.data.ports.get(self.port, {}).get("status")
+            return ""
+        try:
+            return coordinator.data.ports.get(self.port, {}).get("status")
+        except (ValueError, TypeError):
+            return ""
 
     @property
     def icon(self) -> str | None:
@@ -376,93 +396,97 @@ class PortStatusSensor(SwitchPortBaseEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         if not self.coordinator.data:
             return {}
-        p = self.coordinator.data.ports.get(self.port, {})
-
-        # === LIFETIME VALUES (always available) ===
-        raw_rx_bytes = p.get("rx", 0)
-        raw_tx_bytes = p.get("tx", 0)
-
-        # === LIVE RATE CALCULATION (only if we have previous data) ===
-        now = datetime.now().timestamp()
-        rx_bps_live = 0
-        tx_bps_live = 0
-
-        if (self._last_rx_bytes is not None
-            and self._last_tx_bytes is not None
-            and self._last_update is not None
-            and now > self._last_update):
-
-            actual_delta = now - self._last_update
-            delta_time = actual_delta if actual_delta < (self.coordinator.update_seconds * 1.5) else self.coordinator.update_seconds
-
-            if delta_time > 0:
-                # --- RAW DELTAS ---
-                delta_rx = raw_rx_bytes - self._last_rx_bytes
-                delta_tx = raw_tx_bytes - self._last_tx_bytes
-        
-                # --- HANDLE 32-bit WRAPAROUND ---
-                # Most switches use 32-bit counters for ifHC* until > 4GB
-                MAX32 = 4294967296  # 2^32
-        
-                if delta_rx < 0:
-                    # If previous value was "close" to wrap limit → wrap happened
-                    if self._last_rx_bytes > 3_000_000_000:
-                        delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
-        
-                if delta_tx < 0:
-                    if self._last_tx_bytes > 3_000_000_000:
-                        delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
-
-        
-                # --- COMPUTE LIVE BPS ---
-                rx_bps_live = int(delta_rx * 8 / delta_time)
-                tx_bps_live = int(delta_tx * 8 / delta_time)
-        
-                # --- FINAL SAFETY CLAMP ---
-                MAX_SAFE_BPS = 20_000_000_000
-                if rx_bps_live < 0 or rx_bps_live > MAX_SAFE_BPS:
-                    _LOGGER.warning("RX counter reset or spurious data detected. Dropping rate data.")
-                    rx_bps_live = 0
-                    
-                if tx_bps_live < 0 or tx_bps_live > MAX_SAFE_BPS:
-                    _LOGGER.warning("TX counter reset or spurious data detected. Dropping rate data.")
-                    tx_bps_live = 0
-
-        # Store for next poll
-        self._last_rx_bytes = raw_rx_bytes
-        self._last_tx_bytes = raw_tx_bytes
-        self._last_update = now
-        port_info = self.coordinator.port_mapping.get(int(self.port), {})
-        has_poe = (
-            p.get("poe_power", 0) > 0 or
-            p.get("poe_status", 0) > 0 or
-            self.coordinator.base_oids.get("poe_power") or
-            self.coordinator.base_oids.get("poe_status")
-        )
-        attrs = {
-            "port_name": p.get("name"),
-            "speed_bps": p.get("speed"),
-            # Legacy — kept for old cards / backward compatibility
-            "rx_bps": raw_rx_bytes * 8,
-            "tx_bps": raw_tx_bytes * 8,
-            # NEW — real live rates (used when card has show_live_traffic: true)
-            "rx_bps_live": rx_bps_live,
-            "tx_bps_live": tx_bps_live,
-            # SFP / Copper detection (universal — works on Zyxel, TP-Link, QNAP, ASUS, etc.)
-            "is_sfp": bool(port_info.get("is_sfp", False)),
-            "is_copper": bool(port_info.get("is_copper", True)),
-            "interface": port_info.get("if_descr"),  # e.g. "eth5"
-            "custom": p.get("port_custom"),
-        }
-        if self.coordinator.include_vlans and p.get("vlan") is not None:
-            attrs["vlan_id"] = p["vlan"]
-        if has_poe:
-            attrs.update({
-                "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
-                "poe_enabled": p.get("poe_status") in (1, 2, 4),
-                "poe_class": p.get("poe_status"),
-            })
-        return attrs
+        try:    
+            p = self.coordinator.data.ports.get(self.port, {})
+    
+            # === LIFETIME VALUES (always available) ===
+            raw_rx_bytes = p.get("rx", 0)
+            raw_tx_bytes = p.get("tx", 0)
+    
+            # === LIVE RATE CALCULATION (only if we have previous data) ===
+            now = datetime.now().timestamp()
+            rx_bps_live = 0
+            tx_bps_live = 0
+    
+            if (self._last_rx_bytes is not None
+                and self._last_tx_bytes is not None
+                and self._last_update is not None
+                and now > self._last_update):
+    
+                actual_delta = now - self._last_update
+                delta_time = actual_delta if actual_delta < (self.coordinator.update_seconds * 1.5) else self.coordinator.update_seconds
+    
+                if delta_time > 0:
+                    # --- RAW DELTAS ---
+                    delta_rx = raw_rx_bytes - self._last_rx_bytes
+                    delta_tx = raw_tx_bytes - self._last_tx_bytes
+            
+                    # --- HANDLE 32-bit WRAPAROUND ---
+                    # Most switches use 32-bit counters for ifHC* until > 4GB
+                    MAX32 = 4294967296  # 2^32
+            
+                    if delta_rx < 0:
+                        # If previous value was "close" to wrap limit → wrap happened
+                        if self._last_rx_bytes > 3_000_000_000:
+                            delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
+            
+                    if delta_tx < 0:
+                        if self._last_tx_bytes > 3_000_000_000:
+                            delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
+    
+            
+                    # --- COMPUTE LIVE BPS ---
+                    rx_bps_live = int(delta_rx * 8 / delta_time)
+                    tx_bps_live = int(delta_tx * 8 / delta_time)
+            
+                    # --- FINAL SAFETY CLAMP ---
+                    MAX_SAFE_BPS = 20_000_000_000
+                    if rx_bps_live < 0 or rx_bps_live > MAX_SAFE_BPS:
+                        _LOGGER.warning("RX counter reset or spurious data detected. Dropping rate data.")
+                        rx_bps_live = 0
+                        
+                    if tx_bps_live < 0 or tx_bps_live > MAX_SAFE_BPS:
+                        _LOGGER.warning("TX counter reset or spurious data detected. Dropping rate data.")
+                        tx_bps_live = 0
+    
+            # Store for next poll
+            self._last_rx_bytes = raw_rx_bytes
+            self._last_tx_bytes = raw_tx_bytes
+            self._last_update = now
+            port_info = self.coordinator.port_mapping.get(int(self.port), {})
+            has_poe = (
+                p.get("poe_power", 0) > 0 or
+                p.get("poe_status", 0) > 0 or
+                self.coordinator.base_oids.get("poe_power") or
+                self.coordinator.base_oids.get("poe_status")
+            )
+            attrs = {
+                "port_name": p.get("name"),
+                "speed_bps": p.get("speed"),
+                # Legacy — kept for old cards / backward compatibility
+                "rx_bps": raw_rx_bytes * 8,
+                "tx_bps": raw_tx_bytes * 8,
+                # NEW — real live rates (used when card has show_live_traffic: true)
+                "rx_bps_live": rx_bps_live,
+                "tx_bps_live": tx_bps_live,
+                # SFP / Copper detection (universal — works on Zyxel, TP-Link, QNAP, ASUS, etc.)
+                "is_sfp": bool(port_info.get("is_sfp", False)),
+                "is_copper": bool(port_info.get("is_copper", True)),
+                "interface": port_info.get("if_descr"),  # e.g. "eth5"
+                "custom": p.get("port_custom"),
+            }
+            if self.coordinator.include_vlans and p.get("vlan") is not None:
+                attrs["vlan_id"] = p["vlan"]
+            if has_poe:
+                attrs.update({
+                    "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
+                    "poe_enabled": p.get("poe_status") in (1, 2, 4),
+                    "poe_class": p.get("poe_status"),
+                })
+            return attrs
+        except Exception as e:
+          _LOGGER.debug("Error calculating live traffic for port %s: %s", self.port, e)
+            return {}
 
 # --- System Sensors ---
 
@@ -483,11 +507,11 @@ class SystemCpuSensor(SwitchPortBaseEntity):
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
         if not self.coordinator.data:
-            return None
+            return 0
         try:
             return float(self.coordinator.data.system.get("cpu") or 0)
         except (ValueError, TypeError):
-            return None
+            return 0
             
 class CustomValueSensor(SwitchPortBaseEntity):
     _attr_name = "Custom Value"
@@ -501,8 +525,11 @@ class CustomValueSensor(SwitchPortBaseEntity):
     def native_value(self):
         """Return the custom OID value safely."""
         if not self.coordinator.data:
-            return None
-        return self.coordinator.data.system.get("custom")
+            return ""
+        try:
+            return self.coordinator.data.system.get("custom")
+        except (ValueError, TypeError):
+            return ""
 
 class SystemMemorySensor(SwitchPortBaseEntity):
     """Memory usage sensor."""
@@ -521,11 +548,11 @@ class SystemMemorySensor(SwitchPortBaseEntity):
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
         if not self.coordinator.data:
-            return None
+            return 0
         try:
             return float(self.coordinator.data.system.get("memory") or 0)
         except (ValueError, TypeError):
-            return None
+            return 0
 
 
 class SystemUptimeSensor(SwitchPortBaseEntity):
@@ -544,13 +571,13 @@ class SystemUptimeSensor(SwitchPortBaseEntity):
     def native_value(self) -> int | None:
         """Return the state of the sensor (in seconds)."""
         if not self.coordinator.data:
-            return None
+            return 0
         try:
             # Uptime OID typically returns hundredths of a second. Convert to seconds.
             uptime_hsec = int(self.coordinator.data.system.get("uptime") or 0)
             return int(uptime_hsec / 100)
         except (ValueError, TypeError):
-            return None
+            return 0
 
 
 class SystemHostnameSensor(SwitchPortBaseEntity):
@@ -567,8 +594,11 @@ class SystemHostnameSensor(SwitchPortBaseEntity):
     def native_value(self) -> str | None:
         """Return the state of the sensor."""
         if not self.coordinator.data:
-            return None
-        return self.coordinator.data.system.get("hostname")
+            return ""
+        try:
+            return self.coordinator.data.system.get("hostname")
+        except (ValueError, TypeError):
+            return ""
 
 
 # =============================================================================
