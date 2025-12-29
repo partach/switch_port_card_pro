@@ -1,5 +1,9 @@
 
 ## Changelog
+
+### [0.9.6] - Reload error fix
+- In rare care case person was troubled by reload error, loosing all settings
+
 ### [0.9.5] - Auto card registration fix
 - small fix for auto registration that would add another resource allocation on new install (should not be a big issue)
 - Nearing our 1.0.0 release!!
