@@ -223,6 +223,7 @@ async def discover_physical_ports(
     hass,
     host: str,
     community: str,
+    snmp_port,
     mp_model: int = 1,
 ) -> dict[int, dict[str, Any]]:
     """
