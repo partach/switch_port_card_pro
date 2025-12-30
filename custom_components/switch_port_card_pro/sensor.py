@@ -51,6 +51,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         hass: HomeAssistant,
         host: str,
         community: str,
+        SNMP_port,
         ports: list[int],
         base_oids: dict[str, str],
         system_oids: dict[str, str],
@@ -66,6 +67,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         )
         self.host = host
         self.community = community
+        self.SNMPport = SNMP_port
         self.ports = ports
         self.base_oids = base_oids
         self.system_oids = system_oids
@@ -90,7 +92,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 oids_to_walk.append("vlan")
 
             tasks = [
-                async_snmp_walk(self.hass, self.host, self.community, self.base_oids[k], mp_model=self.mp_model)
+                async_snmp_walk(self.hass, self.host, self.community, self.SNMPport, self.base_oids[k], mp_model=self.mp_model)
                 for k in oids_to_walk if self.base_oids.get(k)
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -193,6 +195,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 self.hass,
                 self.host,
                 self.community,
+                self.SNMPport,
                 [oid for oid in self.system_oids.values() if oid],
                 mp_model=self.mp_model,
             )
