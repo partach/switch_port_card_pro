@@ -6,6 +6,7 @@ DOMAIN: Final = "switch_port_card_pro"
 
 # Config entry keys
 CONF_HOST: Final = "host"
+CONF_SNMP_PORT = 161
 CONF_COMMUNITY: Final = "community"
 CONF_PORTS: Final = "ports"
 CONF_INCLUDE_VLANS: Final = "include_vlans"
