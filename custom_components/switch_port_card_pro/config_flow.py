@@ -9,7 +9,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 from homeassistant.core import callback
@@ -19,9 +18,12 @@ from .const import (
     DOMAIN,
     CONF_COMMUNITY,
     CONF_PORTS,
+    CONF_HOST,
     DEFAULT_PORTS,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
+    CONF_SNMP_PORT,
+    DEFAULT_SNMP_PORT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_COMMUNITY, default="public"): str,
+        vol.Required(CONF_SNMP_PORT,DEFAULT_SNMP_PORT): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
     }
 )
 
@@ -56,6 +59,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self.hass,
                     user_input[CONF_HOST],
                     user_input[CONF_COMMUNITY],
+                    user_input[CONF_SNMP_PORT],
                 )
             except ConnectionError:
                 errors["base"] = "cannot_connect"
@@ -102,12 +106,13 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _test_connection(self, hass: HomeAssistant, host: str, community: str) -> None:
+    async def _test_connection(self, hass: HomeAssistant, host: str, community: str, SNMP_port: int) -> None:
       """SNMP connectivity test direct await, no executor nonsense."""
       await async_snmp_get(
         hass,
         host,
         community,
+        SNMP_port=161,  
         "1.3.6.1.2.1.1.5.0",   # sysName — more reliable than sysDescr
         timeout=12,
         retries=3,
