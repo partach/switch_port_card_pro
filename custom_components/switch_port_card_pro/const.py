@@ -6,7 +6,7 @@ DOMAIN: Final = "switch_port_card_pro"
 
 # Config entry keys
 CONF_HOST: Final = "host"
-CONF_SNMP_PORT = 161
+CONF_SNMP_PORT = "snmp_port"
 CONF_COMMUNITY: Final = "community"
 CONF_PORTS: Final = "ports"
 CONF_INCLUDE_VLANS: Final = "include_vlans"
@@ -38,7 +38,7 @@ SNMP_VERSION_TO_MP_MODEL = {
     "v2c": 1,
     "v3": 2,
 }
-
+DEFAULT_SNMP_PORT: Final = 161
 # Default monitored ports (1–28 is safe for most 24+4 switches)
 DEFAULT_PORTS: Final = list(range(1, 9)) # remove 29 as this is too many for most users
 
