@@ -20,9 +20,11 @@ from .const import (
     CONF_COMMUNITY,
     CONF_PORTS,
     CONF_INCLUDE_VLANS,
+    CONF_SNMP_PORT,
     SNMP_VERSION_TO_MP_MODEL,
     DEFAULT_BASE_OIDS,
     DEFAULT_SYSTEM_OIDS,
+    DEFAULT_SNMP_PORT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,6 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     update_seconds = max(3, entry.options.get("update_interval", 20))
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
+    snmp_port = entry.options.get(CONF_SNMP_PORT, DEFAULT_SNMP_PORT)
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     # === PORT DISCOVERY WITH SMART FALLBACK ===
@@ -276,7 +279,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create coordinator
     coordinator = SwitchPortCoordinator(
-        hass, host, community, ports, base_oids, system_oids, 
+        hass, host, community, snmp_port, ports, base_oids, system_oids, 
         snmp_version, include_vlans, update_seconds
     )
     coordinator.device_name = entry.title
