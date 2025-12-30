@@ -114,8 +114,8 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         hass,
         host,
         community,
-        SNMP_port=161,  
-        CONF_OID_SYSNAME,   # sysName — more reliable than sysDescr
+        SNMP_port,  
+        CONF_OID_SYSNAME,
         timeout=12,
         retries=3,
         mp_model=1,            # v2c
