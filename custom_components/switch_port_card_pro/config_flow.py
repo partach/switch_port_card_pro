@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_SYSTEM_OIDS,
     CONF_SNMP_PORT,
     DEFAULT_SNMP_PORT,
+    CONF_OID_SYSNAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_HOST: user_input[CONF_HOST],
                         CONF_COMMUNITY: user_input[CONF_COMMUNITY],
+                        CONF_SNMP_PORT: user_input[CONF_SNMP_PORT],
                     },
                     options={
     #                    CONF_PORTS: DEFAULT_PORTS, # removed for auto port detection
@@ -113,7 +115,7 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         host,
         community,
         SNMP_port=161,  
-        "1.3.6.1.2.1.1.5.0",   # sysName — more reliable than sysDescr
+        CONF_OID_SYSNAME,   # sysName — more reliable than sysDescr
         timeout=12,
         retries=3,
         mp_model=1,            # v2c
