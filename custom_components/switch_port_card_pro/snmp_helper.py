@@ -50,7 +50,7 @@ async def async_snmp_get(
     hass,
     host: str,
     community: str,
-    SNMP_port: int=161,
+    snmp_port: int=161,
     oid: str,
     timeout: int = 10,
     retries: int = 3,
@@ -64,7 +64,7 @@ async def async_snmp_get(
     transport = None
     
     try:
-        transport = await UdpTransportTarget.create((host, SNMP_port))
+        transport = await UdpTransportTarget.create((host, snmp_port))
         transport.timeout = timeout
         transport.retries = retries
         obj_identity = ObjectIdentity(oid)
@@ -104,7 +104,7 @@ async def async_snmp_walk(
     hass,
     host: str,
     community: str,
-    SNMP_port: int=161,
+    snmp_port: int=161,
     base_oid: str,
     timeout: int = 10,
     retries: int = 3,
@@ -123,7 +123,7 @@ async def async_snmp_walk(
 
     try:
         # Create and configure transport
-        transport = await UdpTransportTarget.create((host, SNMP_port))
+        transport = await UdpTransportTarget.create((host, snmp_port))
         transport.timeout = timeout
         transport.retries = retries
 
@@ -173,7 +173,7 @@ async def async_snmp_bulk(
     hass,
     host: str,
     community: str,
-    SNMP_port: int=161,
+    snmp_port: int=161,
     oid_list: list[str],
     timeout: int = 8,
     retries: int = 2,
@@ -200,7 +200,7 @@ async def async_snmp_bulk(
     # Perform parallel GET only on valid OIDs
     async def _get_one(oid: str):
         return await async_snmp_get(
-            hass, host, community, SNMP_port, oid,
+            hass, host, community, snmp_port, oid,
             timeout=timeout, retries=retries, mp_model=mp_model
         )
 
@@ -235,7 +235,7 @@ async def discover_physical_ports(
     try:
         # Step 1: Get interface descriptions
         descr_data = await async_snmp_walk(
-            hass, host, community, SNMP_port, CONF_OID_IDESCR, mp_model=mp_model
+            hass, host, community, snmp_port, CONF_OID_IDESCR, mp_model=mp_model
         )
         if not descr_data:
             _LOGGER.debug("discover_physical_ports: no ifDescr data from %s", host)
@@ -245,21 +245,21 @@ async def discover_physical_ports(
         
         # Step 2: Get interface types (for reliable SFP detection)
         type_data = await async_snmp_walk(
-            hass, host, community, SNMP_port, CONF_OID_IFTYPE, mp_model=mp_model
+            hass, host, community, snmp_port, CONF_OID_IFTYPE, mp_model=mp_model
         )
         _LOGGER.debug("ifType data from %s: %d types found", host, len(type_data))
         
         # Step 3: Get speed data
         speed_data = await async_snmp_walk(
-            hass, host, community, SNMP_port, CONF_OID_IFSPEED, mp_model=mp_model
+            hass, host, community, snmp_port, CONF_OID_IFSPEED, mp_model=mp_model
         )
         high_speed_data = await async_snmp_walk(
-            hass, host, community, SNMP_port, CONF_OID_IFHIGHSPEED, mp_model=mp_model
+            hass, host, community, snmp_port, CONF_OID_IFHIGHSPEED, mp_model=mp_model
         )
         
         # Step 4: Get sysDescr for manufacturer info
         sys_descr_data = await async_snmp_walk(
-            hass, host, community, SNMP_port, CONF_OID_SYSDESCR, mp_model=mp_model
+            hass, host, community, snmp_port, CONF_OID_SYSDESCR, mp_model=mp_model
         )
         sys_descr = list(sys_descr_data.values())[0] if sys_descr_data else "Unknown"
         _LOGGER.debug("sysDescr from %s: %s", host, sys_descr)
