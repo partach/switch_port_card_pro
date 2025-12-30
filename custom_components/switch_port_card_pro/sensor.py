@@ -195,7 +195,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 self.hass,
                 self.host,
                 self.community,
-                self.SNMPport,
+                self.snmp_port,
                 [oid for oid in self.system_oids.values() if oid],
                 mp_model=self.mp_model,
             )
