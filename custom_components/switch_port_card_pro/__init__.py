@@ -119,7 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     is_first_install = CONF_PORTS not in entry.options
     
     try:
-        detected = await discover_physical_ports(hass, host, community, mp_model)
+        detected = await discover_physical_ports(hass, host, community, snmp_port, mp_model)
         if detected:
             # --- EXTRACT METADATA ---
             # Get a sample port to pull device-wide info (all ports share the same device info)
