@@ -108,13 +108,13 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _test_connection(self, hass: HomeAssistant, host: str, community: str, SNMP_port: int) -> None:
+    async def _test_connection(self, hass: HomeAssistant, host: str, community: str, snmp_port: int) -> None:
       """SNMP connectivity test direct await, no executor nonsense."""
       await async_snmp_get(
         hass,
         host,
         community,
-        SNMP_port,  
+        snmp_port,  
         CONF_OID_SYSNAME,
         timeout=12,
         retries=3,
