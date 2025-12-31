@@ -1,6 +1,11 @@
 
 ## Changelog
 
+### [0.9.7] - SNMP Port config
+- Added SNMP port configuration option
+- Fix for future deprecation warning
+- More defensive code for when people remove sensors.
+   
 ### [0.9.6] - Reload error fix
 - In rare care case person was troubled by reload error, loosing all settings
 
