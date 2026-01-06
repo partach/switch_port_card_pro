@@ -1,6 +1,13 @@
 
 ## Changelog
 
+### [1.0.0] - Card improvement requests
+- Button on card for switching between color schemes live on the spot (POE still absent)
+- Port layout option added to show row of even/uneven to match HW look
+- system box sensor override possibility
+- respect HA theme colors
+- Again a bit more hardened entity protection (needs more work)
+
 ### [0.9.7] - SNMP Port config
 - Added SNMP port configuration option
 - Fix for future deprecation warning
