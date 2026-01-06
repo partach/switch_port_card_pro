@@ -295,7 +295,7 @@ class SwitchPortBaseEntity(SensorEntity):
                     sw_version=firmware,
                     )
             except Exception as err:
-                _LOGGER.error("Entity update failed for %s", self.host)
+                _LOGGER.error("Entity update failed for %s with error %s", self.host, err)
     
         # Run on each coordinator update
         self._unsub_devinfo = self.coordinator.async_add_listener(_update_device_info)
