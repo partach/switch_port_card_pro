@@ -248,10 +248,13 @@ class SwitchPortBaseEntity(SensorEntity):
     @property
     def available(self) -> bool:
         """Return True only if we have data."""
-        return (
-            self.coordinator.last_update_success
-            and self.coordinator.data is not None
-        )
+        try: 
+            return (
+                self.coordinator.last_update_success
+                and self.coordinator.data is not None
+            )
+        except Exception:
+            _LOGGER.error("Entity not available")
 
     async def async_will_remove_from_hass(self) -> None:
         if hasattr(self, '_unsub_coordinator') and self._unsub_coordinator:
@@ -268,29 +271,32 @@ class SwitchPortBaseEntity(SensorEntity):
             """
             Update HA device registry with dynamic system info.
             """
-            if not self.coordinator.data:
-                return
-
-            system = self.coordinator.data.system
-
-            raw_hostname = system.get("hostname") or ""
-            device_name = raw_hostname.strip() or f"Switch {self.coordinator.host}"
-            model = (system.get("model") or "")
-            firmware = system.get("firmware")
-
-            # Update device registry entry
-            dev_reg = device_registry.async_get(self.hass)
-            device_entry = dev_reg.async_get_device(
-                    identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")}
-            )
-            if device_entry:
-                dev_reg.async_update_device(
-                device_entry.id,
-                name=device_name,
-                model=model,
-                sw_version=firmware,
+            try:
+                if not self.coordinator.data:
+                    return
+    
+                system = self.coordinator.data.system
+    
+                raw_hostname = system.get("hostname") or ""
+                device_name = raw_hostname.strip() or f"Switch {self.coordinator.host}"
+                model = (system.get("model") or "")
+                firmware = system.get("firmware")
+    
+                # Update device registry entry
+                dev_reg = device_registry.async_get(self.hass)
+                device_entry = dev_reg.async_get_device(
+                        identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")}
                 )
-
+                if device_entry:
+                    dev_reg.async_update_device(
+                    device_entry.id,
+                    name=device_name,
+                    model=model,
+                    sw_version=firmware,
+                    )
+            except Exception as err:
+                _LOGGER.error("Entity update failed for %s", self.host)
+    
         # Run on each coordinator update
         self._unsub_devinfo = self.coordinator.async_add_listener(_update_device_info)
 
