@@ -19,8 +19,10 @@ const DEFAULT_CONFIG = {
   ports_per_row: 8,
   hide_unused_port: false,
   hide_unused_port_hours: 24,
+  layout_mode: "linear",  // Options: "linear" (default), "even_top", "odd_top"
   truncate_text: true,
-  card_background_color: "rgba(var(--rgb-primary-background-color, 40, 40, 40), 0.4)",
+  theme_safe_colors: true,  // not used for now
+  card_background_color: "rgba(var(--rgb-primary-background-color, 40, 40, 40), 0.6)",
   system_boxes: {
     cpu: true,
     memory: true,
@@ -29,6 +31,15 @@ const DEFAULT_CONFIG = {
     poe: true,
     firmware: true,
     custom: true,
+  },
+  system_box_overrides: {
+    cpu: "",
+    memory: "",
+    uptime: "",
+    hostname: "",
+    poe: "",
+    firmware: "",
+    custom: "",
   },
 };
 
@@ -73,6 +84,28 @@ class SwitchPortCardPro extends HTMLElement {
     if (!this.shadowRoot.querySelector("ha-card")) {
       this._createSkeleton();
     }
+    // Handle ha-entity-picker changes
+    this.querySelectorAll("ha-entity-picker").forEach(picker => {
+      picker.addEventListener("value-changed", (ev) => {
+        const key = picker.configValue;  // e.g. "system_box_overrides.cpu"
+        const value = ev.detail.value || "";
+
+        const newConfig = structuredClone(this._config);
+        const keys = key.split(".");
+        let target = newConfig;
+        for (let i = 0; i < keys.length - 1; i++) {
+          target = target[keys[i]] = target[keys[i]] || {};
+        }
+        target[keys[keys.length - 1]] = value;
+
+        this._config = newConfig;
+        this.dispatchEvent(new CustomEvent("config-changed", {
+          detail: { config: newConfig },
+          bubbles: true,
+          composed: true
+        }));
+      });
+    });
 
     this._render();
   }
@@ -123,7 +156,17 @@ class SwitchPortCardPro extends HTMLElement {
 
     return entities;
   }
-
+  _applyPortsPerRowStaggered() {
+    const portsPerRow = this._config.ports_per_row || 8;
+    const style = document.createElement('style');
+    style.textContent = `:root { --ports-per-row: ${portsPerRow}; }`;
+    this.shadowRoot.appendChild(style);
+  }
+  _applyPortsPerRowToGrid(gridElement) {
+    if (!gridElement) return;
+    const portsPerRow = this._config.ports_per_row || 8;
+    gridElement.style.gridTemplateColumns = `repeat(${portsPerRow}, 1fr)`;
+  }
   _createSkeleton() {
     const c = this._config.compact_mode ? "compact" : "";
     const hasRow3 = this._config.row3 && this._config.row3.toLowerCase() !== "none";
@@ -137,7 +180,6 @@ class SwitchPortCardPro extends HTMLElement {
           margin-top: 1px;
         }
         :host{display:block;color:var(--primary-text-color);padding:1px;border-radius:var(--ha-card-border-radius,12px);font-family:var(--ha-font-family,Roboto)}
-        .header{display:flex;padding: 6px 8px;justify-content:space-between;align-items:center;margin-bottom:2px;font-size:1.2em;font-weight:600}
         .system-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin:10px 0 8px 0}
         .info-box{background:rgba(var(--rgb-card-background-color,255,255,255),0.08);backdrop-filter:blur(8px);padding:7px 9px;border-radius:10px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.12)}
         .info-value{font-size:1.05em;font-weight:bold;line-height:1.05;margin:0}
@@ -148,7 +190,13 @@ class SwitchPortCardPro extends HTMLElement {
           margin: 0 !important;
           height: 0 !important;
         }
-        .gauge-fill{height:100%;background:linear-gradient(90deg,var(--label-badge-green,#4caf50),var(--label-badge-yellow,#ff9800) 50%,var(--label-badge-red,#f44336));background-size:300% 100%;width:100%;transition:background-position .8s ease}
+        .gauge-fill {
+          background: linear-gradient(90deg, 
+            var(--label-badge-green, #4caf50),
+            var(--label-badge-yellow, #ff9800) 50%,
+            var(--label-badge-red, #f44336)
+          );
+        }
         .section-label{font-size:0.9em;font-weight:600;color:var(--secondary-text-color);margin:2px 0 4px;text-align:center;width:100%}
         .ports-grid {
           display: grid;
@@ -168,7 +216,19 @@ class SwitchPortCardPro extends HTMLElement {
         /* Compact mode overrides */
         .compact .ports-grid { --port-min-width: 40px; }
         .compact .ports-grid:has(.port.size-xlarge) { --port-min-width: 48px; }
+        .ports-grid.top-row,
+        .ports-grid.bottom-row {
+          display: grid;
+          grid-template-columns: repeat(var(--ports-per-row, 8), 1fr);
+          gap: 3px;
+          width: 100%;
+          margin-bottom: 6px;  /* Space between top and bottom row */
+        }
 
+        .compact .ports-grid.top-row,
+        .compact .ports-grid.bottom-row {
+          margin-bottom: 4px;
+        }
         .port {
           display: flex;
           flex-direction: column;
@@ -176,14 +236,45 @@ class SwitchPortCardPro extends HTMLElement {
           padding: ${hasRow3 ? '4px 2px 4px 2px' : '4px 2px'} !important;
           gap: 2px;
           border-radius: 4px;
-          background: rgba(var(--rgb-primary-background-color, 0, 0, 0), 0.4);
+          background: var(--card-background-color, rgba(var(--rgb-card-background-color), 0.8));
           cursor: default;
           transition: none;
           position: relative;
+          color: var(--primary-text-color);
           box-shadow: 0 1px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.06);
         }
+        #title, #bandwidth {
+          color: var(--primary-text-color);
+        }
         .port:hover{transform:scale(1.06);z-index:10}
+        .header{
+          display:flex;
+          padding: 6px 8px;
+          justify-content:space-between;
+          color: var(--primary-text-color);
+          background: inherit;  /* ← This makes header use card background */
+          align-items:center;  /* This vertically centers everything */
+          margin-bottom:2px;
+          font-size:1.2em;
+          font-weight:600
+        }
 
+        .scheme-cycle-button {
+          --mdc-icon-button-size: 40px;
+          --mdc-icon-size: 24px;
+          background: rgba(var(--rgb-primary-color), 0.15);
+          border-radius: 50%;
+          backdrop-filter: blur(4px);
+          padding: 8px 16px;
+          border: none;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          font-size: 0.7em;  /* Make text smaller so button fits better */
+        }
+
+        .scheme-cycle-button:hover {
+          background: rgba(var(--rgb-primary-color), 0.3);
+        }
         .row1 {
           display: flex;
           align-items: center;
@@ -236,12 +327,12 @@ class SwitchPortCardPro extends HTMLElement {
           justify-content: center;
         }
         .port.off{background:var(--disabled-background-color);opacity:0.95;color:var(--secondary-text-color)}
-        .port.on-10g{background:#1e88e5;color:white}
-        .port.on-5g{background:#1565c0;color:white}
-        .port.on-2_5g{background:#1976d2;color:white}
-        .port.on-1g{background:#4caf50;color:white}
-        .port.on-100m{background:#ff9800;color:black}
-        .port.on-10m{background:#f44336;color:white}
+        .port.on-10g    { background: var(--switch-port-10g-color, #1e88e5); color: white; }
+        .port.on-5g     { background: var(--switch-port-5g-color, #1565c0); color: white;}
+        .port.on-2_5g   { background: var(--switch-port-2_5g-color, #1976d2); color: white;}
+        .port.on-1g     { background: var(--switch-port-1g-color, #4caf50); color: white;}
+        .port.on-100m   { background: var(--switch-port-100m-color, #ff9800); color: black;}
+        .port.on-10m    { background: var(--switch-port-10m-color, #f44336); color: white;}
         .port.sfp{border:2px solid #2196f3!important;border-radius: 1px;;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
 
         .port.size-xsmall {
@@ -264,7 +355,15 @@ class SwitchPortCardPro extends HTMLElement {
           font-size: 1.40em !important;
           padding-top: 6px !important;
         }
+        .ports-staggered {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;  /* Space between top and bottom row */
+        }
 
+        .compact .ports-staggered {
+          gap: 4px;
+        }
         .compact .port.size-xlarge {
           font-size: 0.72em !important;
         }
@@ -282,32 +381,40 @@ class SwitchPortCardPro extends HTMLElement {
             grid-template-columns: repeat(auto-fit, minmax(var(--port-min-width, 40px), 1fr));
           }
         }
+        .top-row, .bottom-row {
+          margin-bottom: 4px;  /* Space between top/bottom */
+        }
 
+        .compact .top-row, .compact .bottom-row {
+          margin-bottom: 2px;
+        }
         /* HEATMAP COLORS */
-        .heatmap-10 { background:#ff1744 !important; color:white !important; }
-        .heatmap-9  { background:#ff5722 !important; color:white !important; }
-        .heatmap-8  { background:#ff9800 !important; color:black !important; }
-        .heatmap-7  { background:#ffc107 !important; color:black !important; }
-        .heatmap-6  { background:#ffeb3b !important; color:black !important; }
-        .heatmap-5  { background:#cddc39 !important; color:black !important; }
-        .heatmap-4  { background:#8bc34a !important; color:black !important; }
-        .heatmap-3  { background:#4caf50 !important; color:white !important; }
-        .heatmap-2  { background:#2e7d32 !important; color:white !important; }
-        .heatmap-1  { background:#1b5e20 !important; color:white !important; }
+        .heatmap-10 { background: var(--switch-port-heat-10, #ff1744); color: white;}
+        .heatmap-9  { background: var(--switch-port-heat-9, #ff5722); color: white;}
+        .heatmap-8  { background: var(--switch-port-heat-8, #ff9800); color: black;}
+        .heatmap-7  { background: var(--switch-port-heat-7, #ffc107); color: black;}
+        .heatmap-6  { background: var(--switch-port-heat-6, #ffeb3b); color: black;}
+        .heatmap-5  { background: var(--switch-port-heat-5, #cddc39); color: black;}
+        .heatmap-4  { background: var(--switch-port-heat-4, #8bc34a); color: black;}
+        .heatmap-3  { background: var(--switch-port-heat-3, #4caf50); color: black;}
+        .heatmap-2  { background: var(--switch-port-heat-2, #2e7d32); color: white;}
+        .heatmap-1  { background: var(--switch-port-heat-1, #1b5e20); color: white;}
 
         /* ACTUAL SPEED COLORS */
-        .actual-100m   { background:#9c27b0 !important; color:white !important; }
-        .actual-10m    { background:#4176ff !important; color:white !important; }
-        .actual-1m     { background:#23a9f4 !important; color:black !important; }
-        .actual-100k   { background:#ffeb3b !important; color:black !important; }
-        .actual-1k     { background:#ffa800 !important; color:black !important; }
-        .actual-off    { background:#191919 !important; color:white !important; }
+        .actual-100m { background: var(--switch-port-actual-high, #9c27b0); }
+        .actual-10m  { background: var(--switch-port-actual-med, #4176ff); }
+        .actual-1m  { background: var(--switch-port-actual-low, #23a9f4); color: black;} 
+        .actual-100k { background: var(--switch-port-actual-low, #ffeb3b);  color: black;}
+        .actual-1k   { background: var(--switch-port-actual-low, #ffa800);  color: black;}
+        .actual-off  { background: var(--switch-port-actual-off, #191919); }
 
         /* VLAN MODE */
         .vlan-colored { transition: none; }
 
         ha-card {
-          background: ${this._config.card_background_color || 'var(--ha-card-background, var(--card-background-color))'};
+          background: ${this._config.card_background_color 
+            ? this._config.card_background_color 
+            : 'var(--ha-card-background, var(--card-background-color))'};
           padding: 1px;
           border-radius: var(--ha-card-border-radius, 8px);
           box-shadow: none !important;
@@ -315,7 +422,11 @@ class SwitchPortCardPro extends HTMLElement {
         }
       </style>
       <ha-card>
-        <div class="header"><span id="title">Switch</span><span id="bandwidth"></span></div>
+        <div class="header">
+          <span id="title">Switch</span>
+          <button class="scheme-cycle-button" id="scheme-button">${this._config.color_scheme}</button>
+          <span id="bandwidth"></span>
+        </div>
         <div class="gauge" id="gauge"><div class="gauge-fill" id="fill"></div></div>
         <div class="ports-section ${c}">
           <div class="section-label ${this._config.show_port_type_labels ? '' : 'section-hidden'}">COPPER</div>
@@ -329,6 +440,11 @@ class SwitchPortCardPro extends HTMLElement {
     `;
 
     this._applyPortsPerRow();
+    this._applyPortsPerRowStaggered();
+    const schemeButton = this.shadowRoot.getElementById("scheme-button");
+    if (schemeButton) {
+      schemeButton.addEventListener("click", () => this._cycleColorScheme());
+    }
   }
 
   _formatLastSeen(seconds) {
@@ -434,10 +550,46 @@ class SwitchPortCardPro extends HTMLElement {
     }));
   }
 
+  _cycleColorScheme() {
+
+    const schemes = ["speed", "heatmap", "vlan", "actual_speed"];
+    const current = this._config.color_scheme || "speed";
+    
+    const currentIndex = schemes.indexOf(current);
+    const nextIndex = (currentIndex === -1 ? 0 : currentIndex + 1) % schemes.length;
+    const nextScheme = schemes[nextIndex];
+
+    // Update config and trigger re-render
+    const newConfig = {
+      ...this._config,
+      color_scheme: nextScheme
+    };
+
+    this._config = newConfig;  // Important: update local config
+
+    // Fire config-changed event for editor persistence
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true
+    }));
+
+    // Force immediate re-render
+    this._render();
+  }
+
   _render() {
     if (!this._hass || !this._config) return;
 
     this._applyPortsPerRow();
+    // fix the button
+    const schemeButton = this.shadowRoot.getElementById("scheme-button");
+    if (schemeButton) {
+      const schemeText = (this._config.color_scheme || "speed")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, l => l.toUpperCase());
+      schemeButton.textContent = schemeText;
+    }
 
     const e = this._entities || {};
     if (Object.keys(e).length===0) {
@@ -479,15 +631,22 @@ class SwitchPortCardPro extends HTMLElement {
           <div class="info-label">${label}</div>
         </div>`;
       };
+      const getEntity = (overrideKey, fallbackEntity) => {
+        const overrideId = this._config.system_box_overrides?.[overrideKey];
+        if (overrideId && this._hass.states[overrideId]) {
+          return this._hass.states[overrideId];
+        }
+        return fallbackEntity;
+      };
 
       this.shadowRoot.getElementById("system").innerHTML = `
-        ${sysCfg.cpu      ? makeBox(cpu?.state != null ? Math.round(cpu.state) + "%" : null, "CPU") : ""}
-        ${sysCfg.memory   ? makeBox(mem?.state != null ? Math.round(mem.state) + "%" : null, "Memory") : ""}
-        ${sysCfg.uptime   ? makeBox(up?.state != null ? this._formatTime(Number(up.state)) : null, "Up-time") : ""}
-        ${sysCfg.hostname ? makeBox(host?.state, "Host") : ""}
-        ${sysCfg.poe      ? makeBox(poe?.state != null ? poe.state + " W" : null, "PoE Total") : ""}
-        ${sysCfg.firmware ? makeBox(fw?.state, "Firmware") : ""}
-        ${sysCfg.custom   ? makeBox(customVal?.state, this._config.custom_text) : ""}
+        ${sysCfg.cpu ? makeBox(getEntity("cpu", cpu)?.state != null ? Math.round(getEntity("cpu", cpu).state) + "%" : null, "CPU") : ""}
+        ${sysCfg.memory ? makeBox(getEntity("memory", mem)?.state != null ? Math.round(getEntity("memory", mem).state) + "%" : null, "Memory") : ""}
+        ${sysCfg.uptime ? makeBox(getEntity("uptime", up)?.state != null ? this._formatTime(Number(getEntity("uptime", up).state)) : null, "Up-time") : ""}
+        ${sysCfg.hostname ? makeBox(getEntity("hostname", host)?.state, "Host") : ""}
+        ${sysCfg.poe ? makeBox(getEntity("poe", poe)?.state != null ? getEntity("poe", poe).state + " W" : null, "PoE Total") : ""}
+        ${sysCfg.firmware ? makeBox(getEntity("firmware", fw)?.state, "Firmware") : ""}
+        ${sysCfg.custom ? makeBox(getEntity("custom", customVal)?.state, this._config.custom_text) : ""}
       `.trim();
     }
     else {
@@ -581,15 +740,19 @@ class SwitchPortCardPro extends HTMLElement {
     };
 
     // PORTS
-    const total=this._config.total_ports||8;
-    const sfpStart=this._config.sfp_start_port||9;
-    const copper=this.shadowRoot.getElementById("copper");
-    const sfp=this.shadowRoot.getElementById("sfp");
-    copper.innerHTML = ""; sfp.innerHTML = "";
+    const total = this._config.total_ports || 8;
+    const sfpStart = this._config.sfp_start_port || 9;
+    const copper = this.shadowRoot.getElementById("copper");
+    const sfp = this.shadowRoot.getElementById("sfp");
+    copper.innerHTML = "";
+    sfp.innerHTML = "";
 
-    const allPorts = [];
     const hasRow3 = this._config.row3 && this._config.row3.toLowerCase() !== "none";
+    const now = Date.now() / 1000;
+    const timeperiod = this._config.hide_unused_port_hours * 3600;
 
+    // First pass: collect all ports and calculate max traffic for heatmap
+    const allPorts = [];
     for (let i = 1; i <= total; i++) {
       const ent = e[`port_${i}_status`];
       if (!ent) continue;
@@ -597,176 +760,228 @@ class SwitchPortCardPro extends HTMLElement {
       const rx = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
       const tx = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
       const vlan = ent.attributes?.vlan_id;
-      allPorts.push({ i, traffic: rx + tx, vlan });
+
+      allPorts.push({ i, traffic: rx + tx, vlan, ent });
     }
 
     const maxTraffic = Math.max(...allPorts.map(p => p.traffic), 1);
-    const now = Date.now() / 1000;
-    const timeperiod = this._config.hide_unused_port_hours * 3600;
 
-    for (let i = 1; i <= total; i++) {
-      const ent = e[`port_${i}_status`];
-      if (!ent) continue;
-
+    // Second pass: filter and render only visible ports
+    const visiblePorts = [];
+    for (const port of allPorts) {
+      const { i, ent } = port;
       const isOn = ent.state === "on";
-      const speedMbps = Math.round((ent.attributes?.speed_bps || 0) / 1e6) || 0;
-      const name = ent.attributes?.port_name?.trim() || `Port ${i}`;
-      const vlan = ent.attributes?.vlan_id;
-      const poeEnabled = ent.attributes?.poe_enabled === true;
-      const ifDescr = ent.attributes?.interface || "";
-      const port_custom = ent.attributes?.custom || "";
-
-      const rxBps = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
-      const txBps = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
-      const rxBpsLifetime = parseInt(ent.attributes?.rx_bps || 0) || 0;
-      const txBpsLifetime = parseInt(ent.attributes?.tx_bps || 0) || 0;
       const lastChanged = new Date(ent.last_changed || ent.last_updated).getTime() / 1000;
       const idleSeconds = now - lastChanged;
-      let speedClass = "off";
-      let speedText = "OFF";
-      let direction = "";
 
       if (!isOn && this._config.hide_unused_port && idleSeconds >= timeperiod) {
-        continue;
+        continue; // hide unused
       }
 
-      if (isOn) {
-        const totalBps = rxBps + txBps;
+      visiblePorts.push({ ...port, isOn });
+    }
 
-        switch (this._config.color_scheme || "speed") {
-          case "speed":
-            if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
-            else if (speedMbps >= 5000) { speedClass = "on-5g"; speedText = "5G"; }
-            else if (speedMbps >= 2500) { speedClass = "on-2_5g"; speedText = "2.5G"; }
-            else if (speedMbps >= 1000) { speedClass = "on-1g"; speedText = "1G"; }
-            else if (speedMbps >= 100) { speedClass = "on-100m"; speedText = "100M"; }
-            else if (speedMbps >= 10) { speedClass = "on-10m"; speedText = "10M"; }
-            else { speedClass = "actual-off"; speedText = `${speedMbps}M`; }
-            break;
+    // Separate copper and SFP
+    let copperPorts = visiblePorts.filter(p => p.i < sfpStart);
+    let sfpPorts = visiblePorts.filter(p => p.i >= sfpStart);
 
-          case "heatmap":
-            const portTraffic = allPorts.find(p => p.i === i)?.traffic || 0;
-            const ratio = maxTraffic > 0 ? portTraffic / maxTraffic : 0;
-            if (ratio > 0.9) speedClass = "heatmap-10";
-            else if (ratio > 0.8) speedClass = "heatmap-9";
-            else if (ratio > 0.7) speedClass = "heatmap-8";
-            else if (ratio > 0.6) speedClass = "heatmap-7";
-            else if (ratio > 0.5) speedClass = "heatmap-6";
-            else if (ratio > 0.4) speedClass = "heatmap-5";
-            else if (ratio > 0.3) speedClass = "heatmap-4";
-            else if (ratio > 0.2) speedClass = "heatmap-3";
-            else if (ratio > 0.1) speedClass = "heatmap-2";
-            else speedClass = "heatmap-1";
-            speedText = formatTraffic(portTraffic);
-            break;
+    const layout = this._config.layout_mode || "linear";
 
-          case "vlan":
-            speedClass = "vlan-colored";
-            break;
+    const rearrange = (ports) => {
+      if (layout === "linear") {
+        return { single: ports.sort((a, b) => a.i - b.i) };
+      }
 
-          case "actual_speed":
-            const mbps = totalBps / 1e6;
-            if (mbps >= 100) speedClass = "actual-100m",speedText=`${(mbps/1000).toFixed(1)}G`;
-            else if (mbps >= 10) speedClass = "actual-10m",speedText=`${mbps.toFixed(1)}M`;
-            else if (mbps >= 1) speedClass = "actual-1m",speedText=`${mbps.toFixed(0)}M`;
-            else if (mbps >= 0.1) speedClass = "actual-100k",speedText=`${(mbps*10).toFixed(0)}K`;
-            else if (mbps > 0.001) speedClass = "actual-1k",speedText=`${(mbps*100).toFixed(0)}K`;
-            else speedClass = "actual-off", speedText=`0k`
+      const even = ports.filter(p => p.i % 2 === 0).sort((a, b) => a.i - b.i);
+      const odd = ports.filter(p => p.i % 2 !== 0).sort((a, b) => a.i - b.i);
 
-            break;
+      if (layout === "even_top") {
+        return { top: even, bottom: odd };
+      } else {
+        return { top: odd, bottom: even };
+      }
+    };
 
-          default:
-            speedClass = "on-1g";
+    const copperLayout = rearrange(copperPorts);
+    const sfpLayout = rearrange(sfpPorts);
+
+    const renderPortRow = (portList, container) => {
+      portList.forEach(({ i, ent, isOn, traffic }) => {
+        const speedMbps = Math.round((ent.attributes?.speed_bps || 0) / 1e6) || 0;
+        const name = ent.attributes?.port_name?.trim() || `Port ${i}`;
+        const vlan = ent.attributes?.vlan_id;
+        const poeEnabled = ent.attributes?.poe_enabled === true;
+        const ifDescr = ent.attributes?.interface || "";
+        const port_custom = ent.attributes?.custom || "";
+
+        const rxBps = parseFloat(ent.attributes?.rx_bps_live || 0) || 0;
+        const txBps = parseFloat(ent.attributes?.tx_bps_live || 0) || 0;
+        const rxBpsLifetime = parseInt(ent.attributes?.rx_bps || 0) || 0;
+        const txBpsLifetime = parseInt(ent.attributes?.tx_bps || 0) || 0;
+        const lastChanged = new Date(ent.last_changed || ent.last_updated).getTime() / 1000;
+        const idleSeconds = now - lastChanged;
+
+        let speedClass = "off";
+        let speedText = "OFF";
+        let direction = "";
+
+        if (isOn) {
+          const totalBps = rxBps + txBps;
+
+          switch (this._config.color_scheme || "speed") {
+            case "speed":
+              if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
+              else if (speedMbps >= 5000) { speedClass = "on-5g"; speedText = "5G"; }
+              else if (speedMbps >= 2500) { speedClass = "on-2_5g"; speedText = "2.5G"; }
+              else if (speedMbps >= 1000) { speedClass = "on-1g"; speedText = "1G"; }
+              else if (speedMbps >= 100) { speedClass = "on-100m"; speedText = "100M"; }
+              else if (speedMbps >= 10) { speedClass = "on-10m"; speedText = "10M"; }
+              else { speedClass = "actual-off"; speedText = `${speedMbps}M`; }
+              break;
+
+            case "heatmap":
+              const ratio = maxTraffic > 0 ? traffic / maxTraffic : 0;
+              if (ratio > 0.9) speedClass = "heatmap-10";
+              else if (ratio > 0.8) speedClass = "heatmap-9";
+              else if (ratio > 0.7) speedClass = "heatmap-8";
+              else if (ratio > 0.6) speedClass = "heatmap-7";
+              else if (ratio > 0.5) speedClass = "heatmap-6";
+              else if (ratio > 0.4) speedClass = "heatmap-5";
+              else if (ratio > 0.3) speedClass = "heatmap-4";
+              else if (ratio > 0.2) speedClass = "heatmap-3";
+              else if (ratio > 0.1) speedClass = "heatmap-2";
+              else speedClass = "heatmap-1";
+              speedText = formatTraffic(traffic);
+              break;
+
+            case "vlan":
+              speedClass = "vlan-colored";
+              break;
+
+            case "actual_speed":
+              const mbps = totalBps / 1e6;
+              if (mbps >= 100) { speedClass = "actual-100m"; speedText = `${(mbps/1000).toFixed(1)}G`; }
+              else if (mbps >= 10) { speedClass = "actual-10m"; speedText = `${mbps.toFixed(1)}M`; }
+              else if (mbps >= 1) { speedClass = "actual-1m"; speedText = `${mbps.toFixed(0)}M`; }
+              else if (mbps >= 0.1) { speedClass = "actual-100k"; speedText = `${(mbps*10).toFixed(0)}K`; }
+              else if (mbps > 0.001) { speedClass = "actual-1k"; speedText = `${(mbps*100).toFixed(0)}K`; }
+              else { speedClass = "actual-off"; speedText = "0k"; }
+              break;
+
+            default:
+              speedClass = "on-1g";
+          }
+
+          if (rxBps > txBps * 1.8) direction = "\u2193";
+          else if (txBps > rxBps * 1.8) direction = "\u2191";
+          else direction = "\u2195";
+        } else {
+          speedText = "-";
+          direction = "-";
         }
 
-        if (rxBps > txBps * 1.8) direction = "\u2193";
-        else if (txBps > rxBps * 1.8) direction = "\u2191";
-        else direction = '\u2195';
-      } else {
-        speedText = "-";
-        direction = "-";
-      }
+        const div = document.createElement("div");
+        div.className = `port ${speedClass} ${i >= sfpStart ? "sfp" : ""} ${!isOn ? "off" : ""}`;
+        const size = this._config.port_size || "medium";
+        div.classList.add(`size-${size}`);
+        div.style.cursor = "pointer";
 
-      const div = document.createElement("div");
-      div.className = `port ${speedClass} ${i>=sfpStart?"sfp":""} ${!isOn ? 'off' : ''}`;
-      const size = this._config.port_size || "medium";
-      div.classList.add(`size-${size}`);
-      div.style.cursor = "pointer";
-      // === APPLY VLAN COLORING HERE ===
-      if (this._config.color_scheme === "vlan") {
-        const bg = vlan ? this._vlanColor(vlan) : "#607d8b";
-        const textColor = this._getContrastYIQ(bg) < 128 ? "white" : "black";
-        div.style.background = bg;
-        div.style.color = textColor;
-        div.style.border = "1px solid rgba(255,255,255,0.15)";
-      }
-      const balancedGlyph = '\u2195'; // ↕
+        // VLAN coloring override
+        if (this._config.color_scheme === "vlan") {
+          const bg = vlan ? this._vlanColor(vlan) : "#607d8b";
+          const textColor = this._getContrastYIQ(bg) < 128 ? "white" : "black";
+          div.style.background = bg;
+          div.style.color = textColor;
+          div.style.border = "1px solid rgba(255,255,255,0.15)";
+        }
 
-      const portDirectionDisplay = (() => {
-        if (!isOn) return "-";
-        if (direction === '\u2193' || direction === '\u2191') return direction;
-        // balanced
-        return balancedGlyph;
-      })();
+        const balancedGlyph = "\u2195";
+        const portDirectionDisplay = isOn
+          ? (direction === "\u2193" || direction === "\u2191" ? direction : balancedGlyph)
+          : "-";
 
-      const ctx = {
-        rxBpsLifetime,
-        txBpsLifetime,
-        rxBps,
-        txBps,
-        speedText,
-        port_custom,
-        name,
-        ifDescr,
-        vlan
-      };
+        const ctx = {
+          rxBpsLifetime,
+          txBpsLifetime,
+          rxBps,
+          txBps,
+          speedText,
+          port_custom,
+          name,
+          ifDescr,
+          vlan
+        };
 
-      // Row 1 display: must be fixed order - vlan-dot, port number, direction (arrow or OFF)
-      const row1DirectionHTML = isOn ? `<span class="port-direction">${portDirectionDisplay}</span>` : `<span class="port-direction">-</span>`;
+        const row2Content = renderRowContent(this._config.row2, ctx, isOn);
+        const row3Content = renderRowContent(this._config.row3, ctx, isOn);
+        const lastSeen = `Last seen: ${this._formatLastSeen(idleSeconds)}`;
 
-      // Row2/Row3 according to config; for OFF ports, row2 still shows traffic as per your choice (0K/0K) and row3 blank
-      const row2Content = renderRowContent(this._config.row2, ctx, isOn);
-      const row3Content = renderRowContent(this._config.row3, ctx, isOn);
-      const lastSeen = `Last seen: ${this._formatLastSeen(idleSeconds)}`;
-      div.title =
-        `${name}` +
-        (ifDescr ? `\nInterface: ${ifDescr}` : "") +
-        `\nState: ${isOn ? "UP" : "DOWN"}` +
-        `\nSpeed: ${speedText}` +
-        (vlan ? `\nVLAN: ${vlan}` : "") +
-        `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
-        `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s` +
-        (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "") +
-        `\n${lastSeen}`;
-      div.onclick = (ev) => {
-        ev.stopPropagation();
-        const entityId = this._entities[`port_${i}_status`]?.entity_id;
-        this._showEntityDetails(entityId);
-      };
-      div.style.cursor = "pointer";  // Show clickable cursor
+        div.title =
+          `${name}` +
+          (ifDescr ? `\nInterface: ${ifDescr}` : "") +
+          `\nState: ${isOn ? "UP" : "DOWN"}` +
+          `\nSpeed: ${speedText}` +
+          (vlan ? `\nVLAN: ${vlan}` : "") +
+          `\nRX: ${(rxBps / 1e6).toFixed(2)} Mb/s` +
+          `\nTX: ${(txBps / 1e6).toFixed(2)} Mb/s` +
+          (port_custom ? `\n${this._config.custom_port_text}: ${port_custom}` : "") +
+          `\n${lastSeen}`;
 
+        div.onclick = (ev) => {
+          ev.stopPropagation();
+          const entityId = this._entities[`port_${i}_status`]?.entity_id;
+          this._showEntityDetails(entityId);
+        };
 
-      div.classList.toggle("no-row3", !hasRow3);
+        div.classList.toggle("no-row3", !hasRow3);
 
-      div.innerHTML = `
-        <div class="row1">
-          <span class="vlan-dot" style="background:${this._vlanColor(vlan)}"></span>
-          <span class="port-num">${i}</span>
-          ${row1DirectionHTML}
-        </div>
+        div.innerHTML = `
+          <div class="row1">
+            <span class="vlan-dot" style="background:${this._vlanColor(vlan)}"></span>
+            <span class="port-num">${i}</span>
+            <span class="port-direction">${portDirectionDisplay}</span>
+          </div>
 
-        ${row2Content !== null ? `<div class="port-row">${row2Content}</div>` : ``}
+          ${row2Content !== null ? `<div class="port-row">${row2Content}</div>` : ``}
 
-        ${hasRow3 && row3Content !== null ? `<div class="port-row">${row3Content}</div>` : ``}
+          ${hasRow3 && row3Content !== null ? `<div class="port-row">${row3Content}</div>` : ``}
 
-        ${poeEnabled ? '<div class="poe-indicator">P</div>' : ''}
+          ${poeEnabled ? '<div class="poe-indicator">P</div>' : ''}
+        `;
+
+        container.appendChild(div);
+      });
+    };
+
+    // Render Copper
+    if (layout === "linear") {
+      renderPortRow(copperLayout.single || [], copper);
+      copper.classList.remove("ports-staggered");
+      copper.style.gridTemplateColumns = `repeat(${this._config.ports_per_row || 8}, 1fr)`;
+    } else {
+      copper.classList.add("ports-staggered");  // Add class to parent
+      copper.style.gridTemplateColumns = "none";  // Remove grid from parent
+      copper.innerHTML = `
+        <div class="ports-grid top-row"></div>
+        <div class="ports-grid bottom-row"></div>
       `;
-      (i < sfpStart ? copper : sfp).appendChild(div);
+      const topRow = copper.querySelector(".top-row");
+      const bottomRow = copper.querySelector(".bottom-row");
+      this._applyPortsPerRowToGrid(topRow);
+      this._applyPortsPerRowToGrid(bottomRow);
+
+      renderPortRow(copperLayout.top || [], topRow);
+      renderPortRow(copperLayout.bottom || [], bottomRow);
     }
+
+// Render SFP — always linear, ignore layout_mode
+    renderPortRow(sfpPorts.sort((a, b) => a.i - b.i), sfp);
   }
 
   getCardSize() { return this._config.compact_mode ? 5 : 8; }
 }
+
+
 
 class SwitchPortCardProEditor extends HTMLElement {
   setConfig(config) {
@@ -871,12 +1086,6 @@ class SwitchPortCardProEditor extends HTMLElement {
             ${deviceList.map(d=>`<option value="${d.id}" ${d.id===this._config.device?'selected':''}>${d.name}</option>`).join('')}
           </select>
         </div>
-        <div class="row"><label>Fallback Entity</label>
-          <select data-key="entity">
-            <option value="">-- Optional --</option>
-            ${entityList.map(e=>`<option value="${e}" ${e===this._config.entity?'selected':''}>${hass.states[e]?.attributes?.friendly_name||e}</option>`).join('')}
-          </select>
-        </div>
         <div class="row-group">
             <div class="field"><label>Total Ports</label><input type="number" data-key="total_ports" value="${this._config.total_ports||8}"></div>
             <div class="field"><label>First SFP Port</label><input type="number" data-key="sfp_start_port" value="${this._config.sfp_start_port||9}"></div>
@@ -902,6 +1111,14 @@ class SwitchPortCardProEditor extends HTMLElement {
             <input type="number" min="1" max="24" data-key="ports_per_row" value="${this._config.ports_per_row || 8}">
           </div>
         </div>
+        <div class="row">
+          <label>Port Layout</label>
+          <select data-key="layout_mode">
+            <option value="linear" ${this._config.layout_mode === "linear" ? "selected" : ""}>Linear (single row)</option>
+            <option value="even_top" ${this._config.layout_mode === "even_top" ? "selected" : ""}>Staggered (Even on top)</option>
+            <option value="odd_top" ${this._config.layout_mode === "odd_top" ? "selected" : ""}>Staggered (Odd on top)</option>
+          </select>
+        </div>
         <div class="row"><label>Port row 2 display</label>
           <select data-key="row2">
             ${makeOptions(this._config.row2)}
@@ -926,7 +1143,7 @@ class SwitchPortCardProEditor extends HTMLElement {
           <input
             type="text"
             data-key="card_background_color"
-            placeholder="rgba(0,0,0,0.4)"
+            placeholder="rgba(23, 22, 22, 0.4)"
             value="${this._config.card_background_color || ''}">
         </div>
         <div class="checkbox-row">
@@ -970,7 +1187,33 @@ class SwitchPortCardProEditor extends HTMLElement {
             <span class="checkbox-label">Custom</span>
           </div>
         </div>
-
+        <!-- System Box Overrides (type entity ID manually) -->
+        <div class="row">
+          <label>System Box Overrides (optional - type entity ID, leave blank for auto)</label>
+        </div>
+        <div class="row-group">
+          <div class="field"><label>CPU Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_cpu" data-key="system_box_overrides.cpu" value="${this._config.system_box_overrides?.cpu || ''}">
+          </div>
+          <div class="field"><label>Memory Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_memory" data-key="system_box_overrides.memory" value="${this._config.system_box_overrides?.memory || ''}">
+          </div>
+          <div class="field"><label>Uptime Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_uptime" data-key="system_box_overrides.uptime" value="${this._config.system_box_overrides?.uptime || ''}">
+          </div>
+          <div class="field"><label>Hostname Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_hostname" data-key="system_box_overrides.hostname" value="${this._config.system_box_overrides?.hostname || ''}">
+          </div>
+          <div class="field"><label>PoE Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_poe" data-key="system_box_overrides.poe" value="${this._config.system_box_overrides?.poe || ''}">
+          </div>
+          <div class="field"><label>Firmware Override</label>
+            <input type="text" placeholder="e.g. sensor.switch_firmware" data-key="system_box_overrides.firmware" value="${this._config.system_box_overrides?.firmware || ''}">
+          </div>
+          <div class="field"><label>Custom Override</label>
+            <input type="text" placeholder="e.g. sensor.my_custom" data-key="system_box_overrides.custom" value="${this._config.system_box_overrides?.custom || ''}">
+          </div>
+        </div>
 
         <div class="checkbox-row">
           <ha-checkbox data-key="show_port_type_labels" ${this._config.show_port_type_labels !== false ? 'checked' : ''}></ha-checkbox>
