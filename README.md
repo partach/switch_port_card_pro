@@ -59,8 +59,8 @@ Options:
      
 Let the install config of the integration guide you as it asks you network switch IP and SNMP community string (make sure network switch is configured for SNMP).
 
-Use the card: `Dashboard` --> `Edit` --> `Add Card` --> chose in the card list the switch_port_card_pro
-Don't forget to refresh the browser for the card to be visible. Much can be fixed with browswer refresh and bypassing caching...
+Use the card: `Dashboard` --> `Edit` --> `Add Card` --> chose in the card list the ` switch_port_card_pro`.<br>
+Don't forget to refresh the browser for the card to be visible. Much can be fixed with browser refresh and fixing browser caching...
 
 ## Preparing your network switch
 You need to enable SNMP in your switch. This is different per manufacturer, please follow the switch manual.
