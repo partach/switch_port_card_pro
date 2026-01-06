@@ -241,7 +241,7 @@ class SwitchPortCardPro extends HTMLElement {
           transition: none;
           position: relative;
           color: var(--primary-text-color);
-          box-shadow: 0 1px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.06);
+          box-shadow: 0 1px 3px rgba(34, 33, 33, 0.2), inset 0 1px 0 rgba(255,255,255,.06);
         }
         #title, #bandwidth {
           color: var(--primary-text-color);
@@ -326,13 +326,14 @@ class SwitchPortCardPro extends HTMLElement {
         .port.no-row3 {
           justify-content: center;
         }
-        .port.off{background:var(--disabled-background-color);opacity:0.95;color:var(--secondary-text-color)}
+        .port.off{background:var(--disabled-background-color);opacity:0.95;color:var(--secondary-text-color);}
         .port.on-10g    { background: var(--switch-port-10g-color, #1e88e5); color: white; }
         .port.on-5g     { background: var(--switch-port-5g-color, #1565c0); color: white;}
         .port.on-2_5g   { background: var(--switch-port-2_5g-color, #1976d2); color: white;}
         .port.on-1g     { background: var(--switch-port-1g-color, #4caf50); color: white;}
         .port.on-100m   { background: var(--switch-port-100m-color, #ff9800); color: black;}
         .port.on-10m    { background: var(--switch-port-10m-color, #f44336); color: white;}
+        .port.on-0m    { background: var(--switch-port-0m-color, #454444ff); color: white;}
         .port.sfp{border:2px solid #2196f3!important;border-radius: 1px;;box-shadow:0 0 12px rgba(33,150,243,.45)!important}
 
         .port.size-xsmall {
@@ -404,9 +405,9 @@ class SwitchPortCardPro extends HTMLElement {
         .actual-100m { background: var(--switch-port-actual-high, #9c27b0); }
         .actual-10m  { background: var(--switch-port-actual-med, #4176ff); }
         .actual-1m  { background: var(--switch-port-actual-low, #23a9f4); color: black;} 
-        .actual-100k { background: var(--switch-port-actual-low, #ffeb3b);  color: black;}
-        .actual-1k   { background: var(--switch-port-actual-low, #ffa800);  color: black;}
-        .actual-off  { background: var(--switch-port-actual-off, #191919); }
+        .actual-100k { background: var(--switch-port-actual-low, #ffeb3b); color: black;}
+        .actual-1k   { background: var(--switch-port-actual-low, #ffa800); color: black;}
+        .actual-off  { background: var(--switch-port-actual-off, #191919); color: white;}
 
         /* VLAN MODE */
         .vlan-colored { transition: none; }
@@ -836,7 +837,7 @@ class SwitchPortCardPro extends HTMLElement {
               else if (speedMbps >= 1000) { speedClass = "on-1g"; speedText = "1G"; }
               else if (speedMbps >= 100) { speedClass = "on-100m"; speedText = "100M"; }
               else if (speedMbps >= 10) { speedClass = "on-10m"; speedText = "10M"; }
-              else { speedClass = "actual-off"; speedText = `${speedMbps}M`; }
+              else { speedClass = "on-0m"; speedText = `${speedMbps}M`; }
               break;
 
             case "heatmap":
