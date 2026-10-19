@@ -279,7 +279,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create coordinator
     coordinator = SwitchPortCoordinator(
-        hass, host, community, snmp_port, ports, base_oids, system_oids, 
+        hass, host, community, snmp_port, ports, base_oids, system_oids,
         snmp_version, include_vlans, update_seconds
     )
     coordinator.device_name = entry.title

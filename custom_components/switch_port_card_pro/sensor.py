@@ -135,6 +135,7 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 p = str(port)
                 port_info = self.port_mapping.get(port) or {}
                 if_index = port_info.get("if_index", port)  # fallback to port number if no mapping
+
                 ports_data[p] = {
                     "status": "off",
                     "speed": 0,
@@ -147,8 +148,12 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     "port_custom": 0,
                 }
 
-                # Use the real if_index for all lookups
-                if any(if_index in t for t in (status, speed, rx, tx, poe_power)):
+                # All per-port tables are keyed by the discovered SNMP ifIndex.
+                if (
+                    any(if_index in table for table in (status, speed, rx, tx))
+                    or if_index in poe_power
+                    or if_index in poe_status
+                ):
                     HighLowSpeed = speed.get(if_index, 0)
                     if HighLowSpeed < 100000: # check if we use the 32 or 64 bit variant
                         HighLowSpeed = HighLowSpeed * 1000000 # convert to bps
