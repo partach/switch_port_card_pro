@@ -26,6 +26,14 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Cisco Small Business rlInterfaces MIB
+# swIfTransceiverType, indexed by ifIndex:
+#   1 = regular
+#   2 = fiberOptics
+#   3 = comboRegular
+#   4 = comboFiberOptics
+CISCO_SB_TRANSCEIVER_TYPE_OID = "1.3.6.1.4.1.9.6.1.101.43.1.1.7"
+
 # Global engine and lock for thread-safe initialization
 _SNMP_ENGINE = None
 _ENGINE_LOCK = asyncio.Lock()
@@ -317,7 +325,27 @@ async def discover_physical_ports(
         
         # Extract manufacturer from sysDescr
         manufacturer = _extract_manufacturer(sys_descr)
-        
+
+        # Cisco Small Business switches expose the active transceiver/media
+        # type through rlInterfaces::swIfTransceiverType. Standard IF-MIB
+        # reports both copper and SFP ports as ethernetCsmacd(6), so it cannot
+        # reliably distinguish the active side of combo ports. Probe the
+        # vendor-specific table directly instead of relying on sysDescr:
+        # unsupported devices simply return no usable table data.
+        cisco_transceiver_data = await async_snmp_walk(
+            hass,
+            host,
+            community,
+            snmp_port,
+            CISCO_SB_TRANSCEIVER_TYPE_OID,
+            mp_model=mp_model,
+        )
+        _LOGGER.debug(
+            "Cisco transceiver probe from %s: %d interfaces found",
+            host,
+            len(cisco_transceiver_data),
+        )
+
         sorted_oids = sorted(descr_data.keys(), key=lambda x: int(x.split('.')[-1]))
         for oid_str in sorted_oids:
             descr_raw = descr_data[oid_str]
@@ -342,6 +370,25 @@ async def discover_physical_ports(
             # === STEP 3: SFP vs Copper detection ===
             if_type = _get_interface_type(type_data, if_index)
             is_sfp, detection = _detect_sfp_port(if_type, descr_lower)
+
+            # Cisco Small Business switches provide a more authoritative
+            # media type than the generic IF-MIB data. Only override the
+            # generic detection when the vendor-specific value is known.
+            raw_transceiver_type = cisco_transceiver_data.get(
+                f"{CISCO_SB_TRANSCEIVER_TYPE_OID}.{if_index}"
+            )
+            if raw_transceiver_type is not None:
+                try:
+                    transceiver_type = int(raw_transceiver_type)
+                    if transceiver_type in (2, 4):
+                        is_sfp = True
+                        detection = "cisco_transceiver_type"
+                    elif transceiver_type in (1, 3):
+                        is_sfp = False
+                        detection = "cisco_transceiver_type"
+                except (ValueError, TypeError):
+                    pass
+
             is_copper = not is_sfp
             
             # === STEP 4: Port speed ===
