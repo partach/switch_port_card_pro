@@ -1,8 +1,9 @@
-import re
-import json
 import glob
-from typing import Dict, Any
+import json
+import re
 from pathlib import Path
+from typing import Any
+
 
 def _extract_manufacturer(sys_descr: str) -> str:
     """Extract manufacturer name from sysDescr string."""
@@ -68,11 +69,8 @@ def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) ->
     
     # Special case: single-digit descriptions
     if descr_clean.isdigit():
-        # If ifIndex is very high, likely virtual
-        if if_index >= 1000:
-            return False
-        # Otherwise treat as potentially physical
-        return True
+        # A very high ifIndex is likely virtual; otherwise potentially physical
+        return if_index < 1000
     
     return is_likely_physical
 
@@ -178,8 +176,8 @@ def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -
     return f"Port {logical_port}"
 
 
-def DoTheLoop(sys_descr: str, descr_data: Dict[str, str], type_data: Dict[str, str]) -> Dict[int, Dict[str, Any]]:
-    mapping: Dict[int, Dict[str, Any]] = {}
+def DoTheLoop(sys_descr: str, descr_data: dict[str, str], type_data: dict[str, str]) -> dict[int, dict[str, Any]]:
+    mapping: dict[int, dict[str, Any]] = {}
     logical_port = 1
     manufacturer = _extract_manufacturer(sys_descr)
 
@@ -218,10 +216,10 @@ def DoTheLoop(sys_descr: str, descr_data: Dict[str, str], type_data: Dict[str, s
 
     return mapping
 
-def test_discover_physical_ports(filename: str) -> Dict[int, Dict[str, Any]]:
+def test_discover_physical_ports(filename: str) -> dict[int, dict[str, Any]]:
     """Test version of discover_physical_ports reading SNMP from file."""
-    descr_data: Dict[str, str] = {}
-    type_data: Dict[str, str] = {}
+    descr_data: dict[str, str] = {}
+    type_data: dict[str, str] = {}
     sys_descr = "Unknown"
 
     try:
@@ -264,7 +262,7 @@ def test_discover_physical_ports(filename: str) -> Dict[int, Dict[str, Any]]:
                 elif oid.startswith('1.3.6.1.2.1.2.2.1.3.'):
                     match_num = re.search(r'(\d+)', val)
                     type_data[oid] = match_num.group(1) if match_num else "0"
-    except Exception:
+    except Exception:  # noqa: BLE001 - unparseable input file -> no ports
         return {}
 
     if not descr_data:

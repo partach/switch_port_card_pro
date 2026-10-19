@@ -5,27 +5,27 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+
 # import homeassistant.helpers.selector as selector
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
-from homeassistant.core import callback
 
-from .snmp_helper import async_snmp_get 
 from .const import (
-    DOMAIN,
     CONF_COMMUNITY,
-    CONF_PORTS,
     CONF_HOST,
-    DEFAULT_PORTS,
-    DEFAULT_BASE_OIDS,
-    DEFAULT_SYSTEM_OIDS,
-    CONF_SNMP_PORT,
-    DEFAULT_SNMP_PORT,
     CONF_OID_SYSNAME,
+    CONF_PORTS,
+    CONF_SNMP_PORT,
+    DEFAULT_BASE_OIDS,
+    DEFAULT_PORTS,
+    DEFAULT_SNMP_PORT,
+    DEFAULT_SYSTEM_OIDS,
+    DOMAIN,
 )
+from .snmp_helper import async_snmp_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,8 +157,8 @@ class SwitchPortCardProOptionsFlow(config_entries.OptionsFlow):
                 new = {**current, **user_input}
                 return self.async_create_entry(title="", data=new)
              #   return self.async_create_entry(title="", data=user_input)
-            except Exception as err:
-                _LOGGER.exception("Error saving options: %s", err)
+            except Exception:
+                _LOGGER.exception("Error saving options")
                 return self.async_abort(reason="Error storing input")            
 
         # Prepare for schema generation
