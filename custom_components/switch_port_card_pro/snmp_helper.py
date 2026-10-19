@@ -1,26 +1,28 @@
 """Async SNMP helper works perfectly with pysnmp-7"""
 from __future__ import annotations
-import logging
-import re
+
 import asyncio
+import logging
 import os
-from typing import Dict, Any
+import re
+from typing import Any
 
 from pysnmp.hlapi.v3arch.asyncio import (
-    SnmpEngine,
     CommunityData,
-    UdpTransportTarget,
     ContextData,
-    ObjectType,
     ObjectIdentity,
+    ObjectType,
+    SnmpEngine,
+    UdpTransportTarget,
     get_cmd,
     walk_cmd,
 )
+
 from .const import (
     CONF_OID_IDESCR,
-    CONF_OID_IFTYPE,
-    CONF_OID_IFSPEED,
     CONF_OID_IFHIGHSPEED,
+    CONF_OID_IFSPEED,
+    CONF_OID_IFTYPE,
     CONF_OID_SYSDESCR,
 )
 
@@ -81,12 +83,12 @@ def _create_engine():
     for module_name in dict.fromkeys(module_names):
         try:
             mib_builder.load_modules(module_name)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - MIB preload is best-effort
             _LOGGER.debug("Unable to preload PySNMP MIB module %s: %s", module_name, err)
 
     try:
         mib_builder.import_symbols("SNMPv2-MIB", "snmpInPkts", "snmpOutPkts")
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - MIB preload is best-effort
         _LOGGER.debug("Unable to preload PySNMP MIB symbols: %s", err)
 
     return engine
@@ -127,7 +129,7 @@ async def async_snmp_get(
         transport.retries = retries
         obj_identity = ObjectIdentity(oid)
         
-        error_indication, error_status, error_index, var_binds = await get_cmd(
+        error_indication, error_status, _error_index, var_binds = await get_cmd(
             engine,
             CommunityData(community, mpModel=mp_model),
             transport,
@@ -153,7 +155,7 @@ async def async_snmp_get(
 
     except asyncio.CancelledError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - pysnmp raises many types; report as no value
         _LOGGER.debug("SNMP GET exception on %s (oid=%s): %s", host, oid, exc)
         return None
 
@@ -216,12 +218,12 @@ async def async_snmp_walk(
                     results[oid_str] = value.prettyPrint()
         except asyncio.CancelledError:
             raise
-        except Exception as iter_err:
+        except Exception as iter_err:  # noqa: BLE001 - pysnmp raises many types; keep partial results
             _LOGGER.debug("SNMP WALK iterator failed on %s (oid=%s): %s", host, base_oid, iter_err)
     
     except asyncio.CancelledError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - pysnmp raises many types; keep partial results
         _LOGGER.debug("SNMP WALK failed on %s (%s): %s", host, base_oid, exc)
     
     return results
@@ -236,7 +238,7 @@ async def async_snmp_bulk(
     timeout: int = 8,
     retries: int = 2,
     mp_model: int = 1,
-) -> Dict[str, str | None]:
+) -> dict[str, str | None]:
     """Fast parallel GET for system OIDs. Skips empty/blank OIDs."""
     if not oid_list:
         return {}
@@ -320,7 +322,7 @@ async def discover_physical_ports(
         sys_descr_data = await async_snmp_walk(
             hass, host, community, snmp_port, CONF_OID_SYSDESCR, mp_model=mp_model
         )
-        sys_descr = list(sys_descr_data.values())[0] if sys_descr_data else "Unknown"
+        sys_descr = next(iter(sys_descr_data.values())) if sys_descr_data else "Unknown"
         _LOGGER.debug("sysDescr from %s: %s", host, sys_descr)
         
         # Extract manufacturer from sysDescr
@@ -487,9 +489,7 @@ def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) ->
     
     # Special case: single-digit descriptions
     if descr_clean.isdigit():
-        if if_index >= 1000:
-            return False
-        return True
+        return if_index < 1000
     
     return is_likely_physical
 

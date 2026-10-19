@@ -1,12 +1,12 @@
 """Async sensor platform for Switch Port Card Pro."""
 from __future__ import annotations
-import logging
+
 import asyncio
+import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
-from homeassistant.helpers import device_registry
-from datetime import datetime
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -14,11 +14,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfDataRate,
     UnitOfTime,
-    PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
@@ -31,9 +32,10 @@ from .const import (
     SNMP_VERSION_TO_MP_MODEL,
 )
 from .snmp_helper import (
-    async_snmp_walk,
     async_snmp_bulk,
+    async_snmp_walk,
 )
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -255,7 +257,7 @@ class SwitchPortBaseEntity(SensorEntity):
                 self.coordinator.last_update_success
                 and self.coordinator.data is not None
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - an availability check must never raise
             _LOGGER.error("Entity not available")
             return False
 
@@ -304,7 +306,7 @@ class SwitchPortBaseEntity(SensorEntity):
                     model=model,
                     sw_version=firmware,
                     )
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001 - device-registry refresh must not break the update
                 _LOGGER.error(
                     "Entity update failed for %s with error %s",
                     self.coordinator.host,
@@ -449,14 +451,12 @@ class PortStatusSensor(SwitchPortBaseEntity):
                     # Most switches use 32-bit counters for ifHC* until > 4GB
                     MAX32 = 4294967296  # 2^32
             
-                    if delta_rx < 0:
-                        # If previous value was "close" to wrap limit → wrap happened
-                        if self._last_rx_bytes > 3_000_000_000:
-                            delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
+                    # If previous value was "close" to wrap limit → wrap happened
+                    if delta_rx < 0 and self._last_rx_bytes > 3_000_000_000:
+                        delta_rx = (MAX32 - self._last_rx_bytes) + raw_rx_bytes
             
-                    if delta_tx < 0:
-                        if self._last_tx_bytes > 3_000_000_000:
-                            delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
+                    if delta_tx < 0 and self._last_tx_bytes > 3_000_000_000:
+                        delta_tx = (MAX32 - self._last_tx_bytes) + raw_tx_bytes
     
             
                     # --- COMPUTE LIVE BPS ---
@@ -508,7 +508,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
                     "poe_class": p.get("poe_status"),
                 })
             return attrs
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - attributes must never raise
           _LOGGER.debug("Error calculating live traffic for port %s: %s", self.port, e)
         return {}
 

@@ -1,30 +1,31 @@
 """Switch Port Card Pro integration - __init__.py"""
 from __future__ import annotations
+
+import logging
 import os
 import shutil
-import logging
+from datetime import timedelta
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
-from .sensor import SwitchPortCoordinator
-
-from .snmp_helper import (
-    discover_physical_ports,
-)
 
 from .const import (
-    DOMAIN,
-    CONF_HOST,
     CONF_COMMUNITY,
-    CONF_PORTS,
+    CONF_HOST,
     CONF_INCLUDE_VLANS,
+    CONF_PORTS,
     CONF_SNMP_PORT,
-    SNMP_VERSION_TO_MP_MODEL,
     DEFAULT_BASE_OIDS,
-    DEFAULT_SYSTEM_OIDS,
     DEFAULT_SNMP_PORT,
+    DEFAULT_SYSTEM_OIDS,
+    DOMAIN,
+    SNMP_VERSION_TO_MP_MODEL,
+)
+from .sensor import SwitchPortCoordinator
+from .snmp_helper import (
+    discover_physical_ports,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ async def async_install_frontend_resource(hass: HomeAssistant):
             else:
                 _LOGGER.warning("Frontend source file missing at %s", source_path)
                 
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - frontend copy is optional; never block setup
             _LOGGER.error("Failed to install frontend resource: %s", err)
 
     # Offload the blocking file operations to the executor thread
@@ -127,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             manufacturer = sample_info.get("manufacturer", "Unknown")
             detection_summary = _get_detection_summary(detected)
             
-            all_ports = sorted(int(p) for p in detected.keys())
+            all_ports = sorted(int(p) for p in detected)
             
             # Log detailed discovery results
             copper_count = sum(1 for p in detected.values() if p.get("is_copper"))
@@ -142,7 +143,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         else:
             _LOGGER.debug("Port detection returned no results on %s", host)
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001 - detection is best-effort; falls back to manual config
         _LOGGER.debug("Port detection failed on %s: %s (will use manual config)", host, err)
         detected = None
     
@@ -152,7 +153,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         if detected:
             # Auto-configure from detection
-            all_ports = sorted(int(p) for p in detected.keys())
+            all_ports = sorted(int(p) for p in detected)
             new_options[CONF_PORTS] = all_ports
             
             # Store SFP port range
@@ -212,7 +213,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_options["detection_method"] = detection_summary
             
             # 3. Port validation and configuration
-            all_detected = sorted(int(p) for p in detected.keys())
+            all_detected = sorted(int(p) for p in detected)
             
             if isinstance(user_ports, list) and user_ports:
                 max_user_port = max(user_ports)
