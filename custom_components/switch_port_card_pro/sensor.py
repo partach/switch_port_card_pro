@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -37,6 +38,30 @@ from .snmp_helper import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Cisco memory pools expose "used" and "free" as separate OIDs (no percentage).
+# When the configured memory OID is one of these "used" OIDs, the matching
+# "free" OID is read too and the sensor reports a percentage.
+_MEMORY_USED_FREE_PAIRS = {
+    "1.3.6.1.4.1.9.9.48.1.1.1.5.": "1.3.6.1.4.1.9.9.48.1.1.1.6.",          # ciscoMemoryPoolUsed / Free (bytes)
+    "1.3.6.1.4.1.9.9.109.1.1.1.1.12.": "1.3.6.1.4.1.9.9.109.1.1.1.1.13.",  # cpmCPUMemoryUsed / Free (KB)
+    "1.3.6.1.4.1.9.9.109.1.1.1.1.17.": "1.3.6.1.4.1.9.9.109.1.1.1.1.19.",  # cpmCPUMemoryHCUsed / HCFree (KB)
+}
+
+# POWER-ETHERNET-MIB pethPsePortDetectionStatus: 3 = deliveringPower
+_PETH_DETECTION_STATUS_OID = "1.3.6.1.2.1.105.1.1.1.6"
+
+
+def _short_firmware(val: str | None) -> str | None:
+    """Shorten a multi-line sysDescr-style firmware string.
+
+    'Cisco IOS Software [...], Version 16.12.13, RELEASE ...' -> '16.12.13'.
+    Anything else is cut to its first line (HA states are limited to 255 chars).
+    """
+    if not val:
+        return val
+    m = re.search(r"Version\s+([^\s,]+)", val)
+    return m.group(1) if m else val.splitlines()[0][:250]
 
 
 
@@ -78,6 +103,52 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.port_mapping = {}
         self.update_seconds = update_seconds
         self._last_total_bytes = 0
+
+    def _parse_poe(self, raw: dict[str, str]) -> dict[int, int]:
+        """Map PoE table values to ifIndex.
+
+        POWER-ETHERNET-MIB / CISCO-POWER-ETHERNET-EXT-MIB tables are indexed by
+        group.port (e.g. 1.5 = Gi1/0/5), not by ifIndex. On Cisco-style interface
+        names (x/0/y) the group/port pair is resolved to the discovered ifIndex.
+        Other devices keep the previous behaviour (last OID component).
+        """
+        by_group_port: dict[tuple[int, int], int] = {}
+        legacy: dict[int, int] = {}
+        for oid, val in raw.items():
+            try:
+                parts = oid.split(".")
+                value = int(val)
+                legacy[int(parts[-1])] = value
+                by_group_port[(int(parts[-2]), int(parts[-1]))] = value
+            except (ValueError, IndexError):
+                continue
+
+        out: dict[int, int] = {}
+        for info in (self.port_mapping or {}).values():
+            m = re.search(r"(\d+)/0/(\d+)$", str(info.get("if_descr") or ""))
+            if m:
+                key = (int(m.group(1)), int(m.group(2)))
+                if key in by_group_port and "if_index" in info:
+                    out[info["if_index"]] = by_group_port[key]
+        return out or legacy
+
+    async def _memory_percent(self, used_raw: Any) -> Any:
+        """Turn a Cisco 'memory used' value into a percentage using the matching 'free' OID."""
+        oid = (self.system_oids.get("memory") or "").strip()
+        for used_prefix, free_prefix in _MEMORY_USED_FREE_PAIRS.items():
+            if oid.startswith(used_prefix):
+                if used_raw is None:
+                    return None
+                free_oid = free_prefix + oid[len(used_prefix):]
+                res = await async_snmp_bulk(
+                    self.hass, self.host, self.community, self.snmp_port, [free_oid], mp_model=self.mp_model
+                )
+                try:
+                    used, free = float(used_raw), float(res.get(free_oid))
+                except (TypeError, ValueError):
+                    return None
+                return round(100 * used / (used + free), 1) if used + free > 0 else None
+        return used_raw
 
     async def _async_update_data(self) -> SwitchPortData:
         try:
@@ -126,8 +197,8 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             speed = parse(walk_map.get("speed", {}))
             name = parse(walk_map.get("name", {}), int_val=False)
             vlan = parse(walk_map.get("vlan", {}))
-            poe_power = parse(walk_map.get("poe_power", {}))
-            poe_status = parse(walk_map.get("poe_status", {}))
+            poe_power = self._parse_poe(walk_map.get("poe_power", {}))
+            poe_status = self._parse_poe(walk_map.get("poe_status", {}))
             port_custom = parse(walk_map.get("port_custom", {}))
 
             ports_data: dict[str, dict[str, Any]] = {}
@@ -180,20 +251,20 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             # compute delta from last poll
             delta_total = current_total_bytes - getattr(self, "_last_total_bytes", 0)
             # handle negative (counter reset or wrap) if needed
-            if delta_total < 0:
-                # Heuristic: assume 32-bit wrap if last_total was large
-                MAX32 = 4294967296
-                if getattr(self, "_last_total_bytes", 0) > 3_000_000_000:
-                    delta_total = (MAX32 - self._last_total_bytes) + current_total_bytes
-                else:
-                    # real reset, treat as zero
-                    delta_total = 0
+            # The total is a sum over many ports, so a per-counter 32-bit wrap
+            # heuristic does not apply here: treat a negative delta as a reset.
+            delta_total = max(delta_total, 0)
             # prefer using configured stable interval if available
             delta_time = getattr(self, "update_seconds", 20)
             if delta_time <= 0:
                 delta_time = 20
             # Mbps: megabits per second
-            bandwidth_mbps = round((delta_total * 8) / (1024 * 1024) / delta_time, 2)
+            # (decimal megabits; first poll after start has no baseline -> 0 instead of a spike)
+            bandwidth_mbps = (
+                round((delta_total * 8) / 1_000_000 / delta_time, 2)
+                if self._last_total_bytes
+                else 0.0
+            )
 
             # store for next run
             self._last_total_bytes = current_total_bytes
@@ -216,10 +287,12 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                 "memory": get("memory") or get("memory_zyxel"),
                 "hostname": get("hostname"),
                 "uptime": get("uptime"),
-                "firmware": get("firmware"),
+                "firmware": _short_firmware(get("firmware")),
                 "poe_total_watts": round(total_poe_mw / 1000.0, 2) if total_poe_mw > 0 else None,
                 "custom": get("custom"),
             }
+
+            system["memory"] = await self._memory_percent(system["memory"])
 
             return SwitchPortData(ports=ports_data, bandwidth_mbps=bandwidth_mbps, system=system)
 
@@ -418,6 +491,18 @@ class PortStatusSensor(SwitchPortBaseEntity):
         """Return the icon based on state."""
         return "mdi:lan-connect" if self.native_value == "on" else "mdi:lan-disconnect"
 
+    def _poe_enabled(self, status: Any) -> bool:
+        """Interpret the configured PoE status OID.
+
+        POWER-ETHERNET-MIB pethPsePortDetectionStatus uses 1=disabled,
+        2=searching, 3=deliveringPower, 4=fault; other vendor OIDs keep the
+        previous interpretation.
+        """
+        oid = (self.coordinator.base_oids.get("poe_status") or "").strip().strip(".")
+        if oid.startswith(_PETH_DETECTION_STATUS_OID):
+            return status == 3
+        return status in (1, 2, 4)
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         if not self.coordinator.data:
@@ -504,7 +589,7 @@ class PortStatusSensor(SwitchPortBaseEntity):
             if has_poe:
                 attrs.update({
                     "poe_power_watts": round(p.get("poe_power", 0) / 1000.0, 2),
-                    "poe_enabled": p.get("poe_status") in (1, 2, 4),
+                    "poe_enabled": self._poe_enabled(p.get("poe_status")),
                     "poe_class": p.get("poe_status"),
                 })
             return attrs

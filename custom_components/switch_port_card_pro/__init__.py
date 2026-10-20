@@ -57,6 +57,11 @@ async def async_install_frontend_resource(hass: HomeAssistant):
             if os.path.exists(source_path):
                 # Using copy2 to preserve metadata (timestamps)
                 shutil.copy2(source_path, target_path)
+                # A leftover pre-compressed copy (e.g. from a HACS install) would be
+                # served instead of the fresh .js and pin the card to an old version.
+                stale_gz = target_path + ".gz"
+                if os.path.exists(stale_gz):
+                    os.remove(stale_gz)
                 _LOGGER.info("Updated frontend resource: %s", target_path)
             else:
                 _LOGGER.warning("Frontend source file missing at %s", source_path)
