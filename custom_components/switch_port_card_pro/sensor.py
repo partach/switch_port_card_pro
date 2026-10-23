@@ -51,17 +51,26 @@ _MEMORY_USED_FREE_PAIRS = {
 # POWER-ETHERNET-MIB pethPsePortDetectionStatus: 3 = deliveringPower
 _PETH_DETECTION_STATUS_OID = "1.3.6.1.2.1.105.1.1.1.6"
 
+# Home Assistant limits entity states to 255 characters.
+_MAX_STATE_LEN = 255
+
 
 def _short_firmware(val: str | None) -> str | None:
-    """Shorten a multi-line sysDescr-style firmware string.
+    """Make a firmware string usable as an HA state without touching good values.
 
-    'Cisco IOS Software [...], Version 16.12.13, RELEASE ...' -> '16.12.13'.
-    Anything else is cut to its first line (HA states are limited to 255 chars).
+    A single line of at most 255 characters is returned unchanged (any vendor).
+    Only multi-line or too long values (e.g. Cisco sysDescr text) are shortened:
+    'Cisco IOS Software [...], Version 16.12.13, RELEASE ...' -> '16.12.13',
+    otherwise the first line cut to 255 characters.
     """
     if not val:
         return val
+    if "\n" not in val and "\r" not in val and len(val) <= _MAX_STATE_LEN:
+        return val
     m = re.search(r"Version\s+([^\s,]+)", val)
-    return m.group(1) if m else val.splitlines()[0][:250]
+    if m:
+        return m.group(1)
+    return val.strip().splitlines()[0][:_MAX_STATE_LEN]
 
 
 
@@ -107,30 +116,45 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
     def _parse_poe(self, raw: dict[str, str]) -> dict[int, int]:
         """Map PoE table values to ifIndex.
 
-        POWER-ETHERNET-MIB / CISCO-POWER-ETHERNET-EXT-MIB tables are indexed by
-        group.port (e.g. 1.5 = Gi1/0/5), not by ifIndex. On Cisco-style interface
-        names (x/0/y) the group/port pair is resolved to the discovered ifIndex.
-        Other devices keep the previous behaviour (last OID component).
+        Two candidate mappings are built:
+        - legacy: last OID component used as ifIndex (previous behaviour);
+        - group.port: POWER-ETHERNET-MIB / CISCO-POWER-ETHERNET-EXT-MIB tables are
+          indexed by group.port (e.g. 1.5 = Gi1/0/5), resolved to the discovered
+          ifIndex via interface names ending in x/0/y.
+        The mapping that covers more discovered ports wins; on a tie the legacy
+        mapping is kept so existing setups do not change.
         """
         by_group_port: dict[tuple[int, int], int] = {}
         legacy: dict[int, int] = {}
         for oid, val in raw.items():
+            parts = oid.split(".")
             try:
-                parts = oid.split(".")
                 value = int(val)
                 legacy[int(parts[-1])] = value
+            except (ValueError, IndexError):
+                continue
+            try:
                 by_group_port[(int(parts[-2]), int(parts[-1]))] = value
             except (ValueError, IndexError):
                 continue
 
-        out: dict[int, int] = {}
+        discovered: set[int] = set()
+        group_port: dict[int, int] = {}
         for info in (self.port_mapping or {}).values():
+            if_index = info.get("if_index")
+            if if_index is None:
+                continue
+            discovered.add(if_index)
             m = re.search(r"(\d+)/0/(\d+)$", str(info.get("if_descr") or ""))
             if m:
                 key = (int(m.group(1)), int(m.group(2)))
-                if key in by_group_port and "if_index" in info:
-                    out[info["if_index"]] = by_group_port[key]
-        return out or legacy
+                if key in by_group_port:
+                    group_port[if_index] = by_group_port[key]
+
+        legacy_coverage = len(discovered.intersection(legacy))
+        if len(group_port) > legacy_coverage:
+            return group_port
+        return legacy
 
     async def _memory_percent(self, used_raw: Any) -> Any:
         """Turn a Cisco 'memory used' value into a percentage using the matching 'free' OID."""
