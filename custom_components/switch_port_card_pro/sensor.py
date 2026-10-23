@@ -51,17 +51,27 @@ _MEMORY_USED_FREE_PAIRS = {
 # POWER-ETHERNET-MIB pethPsePortDetectionStatus: 3 = deliveringPower
 _PETH_DETECTION_STATUS_OID = "1.3.6.1.2.1.105.1.1.1.6"
 
+# Interface names like Gi1/0/5 -> PoE group 1, port 5
+_GROUP_PORT_RE = re.compile(r"(\d+)/0/(\d+)$")
+
 
 def _short_firmware(val: str | None) -> str | None:
-    """Shorten a multi-line sysDescr-style firmware string.
+    """Make a firmware string usable as an HA state (max 255 chars).
 
-    'Cisco IOS Software [...], Version 16.12.13, RELEASE ...' -> '16.12.13'.
-    Anything else is cut to its first line (HA states are limited to 255 chars).
+    A single line that already fits is returned unchanged, whatever the vendor.
+    Only multi-line or too long values (e.g. a Cisco sysDescr) are shortened:
+    'Cisco IOS Software [...], Version 16.12.13, RELEASE ...' -> '16.12.13',
+    otherwise the first non-empty line, cut to 255 chars.
     """
     if not val:
         return val
+    val = val.strip()
+    if "\n" not in val and "\r" not in val and len(val) <= 255:
+        return val
     m = re.search(r"Version\s+([^\s,]+)", val)
-    return m.group(1) if m else val.splitlines()[0][:250]
+    if m:
+        return m.group(1)
+    return next((line.strip() for line in val.splitlines() if line.strip()), "")[:255]
 
 
 
@@ -108,9 +118,11 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         """Map PoE table values to ifIndex.
 
         POWER-ETHERNET-MIB / CISCO-POWER-ETHERNET-EXT-MIB tables are indexed by
-        group.port (e.g. 1.5 = Gi1/0/5), not by ifIndex. On Cisco-style interface
-        names (x/0/y) the group/port pair is resolved to the discovered ifIndex.
-        Other devices keep the previous behaviour (last OID component).
+        group.port (e.g. 1.5 = Gi1/0/5), not by ifIndex. Two mappings are built:
+        - legacy: last OID component used as ifIndex (previous behaviour)
+        - group/port: interface names like x/0/y resolved to the discovered ifIndex
+        The one that covers more discovered ports wins; on a tie legacy is kept,
+        so switches the old mapping already worked for are not affected.
         """
         by_group_port: dict[tuple[int, int], int] = {}
         legacy: dict[int, int] = {}
@@ -123,14 +135,17 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             except (ValueError, IndexError):
                 continue
 
-        out: dict[int, int] = {}
-        for info in (self.port_mapping or {}).values():
-            m = re.search(r"(\d+)/0/(\d+)$", str(info.get("if_descr") or ""))
+        ports = [info for info in (self.port_mapping or {}).values() if "if_index" in info]
+        resolved: dict[int, int] = {}
+        for info in ports:
+            m = _GROUP_PORT_RE.search(str(info.get("if_descr") or ""))
             if m:
                 key = (int(m.group(1)), int(m.group(2)))
-                if key in by_group_port and "if_index" in info:
-                    out[info["if_index"]] = by_group_port[key]
-        return out or legacy
+                if key in by_group_port:
+                    resolved[info["if_index"]] = by_group_port[key]
+
+        legacy_hits = sum(1 for info in ports if info["if_index"] in legacy)
+        return resolved if len(resolved) > legacy_hits else legacy
 
     async def _memory_percent(self, used_raw: Any) -> Any:
         """Turn a Cisco 'memory used' value into a percentage using the matching 'free' OID."""
