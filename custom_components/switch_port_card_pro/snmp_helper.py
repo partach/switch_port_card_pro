@@ -444,7 +444,7 @@ def _extract_manufacturer(sys_descr: str) -> str:
 def _is_virtual_interface(descr_lower: str) -> bool:
     """Check if interface description indicates a virtual interface."""
     # Quick rejections first
-    if any(x in descr_lower for x in ["cpu interface", "link aggregate", "logical-int"]):
+    if any(x in descr_lower for x in ["cpu interface", "link aggregate", "logical-int", "port-channel", "stackport", "stacksub"]):
         return True
     
     # Patterns that should match at word start
@@ -482,7 +482,7 @@ def _is_physical_interface(descr_lower: str, descr_clean: str, if_index: int) ->
             "port", "eth", "ge.", "swp", "xe.", "lan", "wan", "sfp",
             "gigabit", "fasteth", "10g", "slot:", "level",
         ]) or
-        re.match(r'^gigabithethernet\d+', descr_lower) or
+        re.match(r'^gigabitethernet\d+', descr_lower) or
         re.match(r'^[pg]\d+$', descr_lower) or
         (descr_lower.startswith("slot:") and "port:" in descr_lower)
     )
@@ -519,7 +519,7 @@ def _detect_sfp_port(if_type: int, descr_lower: str) -> tuple[bool, str]:
         return True, "netgear_10g_sfp"
 
     # Cisco stack/modular slot logic
-    cisco_slot_match = re.search(r'gigabithethernet(\d+)/(\d+)/(\d+)', descr_lower)
+    cisco_slot_match = re.search(r'gigabitethernet(\d+)/(\d+)/(\d+)', descr_lower)
     if cisco_slot_match:
         module_slot = int(cisco_slot_match.group(2))
         if module_slot > 0:
@@ -575,7 +575,7 @@ def _generate_port_name(descr_clean: str, descr_lower: str, logical_port: int) -
         return f"Port {descr_clean}"
     
     # Cisco GigabitEthernet format
-    if "gigabithethernet" in descr_lower:
+    if "gigabitethernet" in descr_lower:
         match = re.search(r'(\d+)$', descr_lower)
         if match:
             return f"Port {match.group(1)}"
