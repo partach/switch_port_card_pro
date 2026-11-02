@@ -9,6 +9,7 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -34,6 +35,11 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+# async_install_frontend_resource() copies the card into www/community/ itself,
+# so /local/community resolves with or without HACS / the Marketplace.
+CARD_FILE = "switch-port-card-pro.js"
+CARD_URL = f"/local/community/switch_port_card_pro_card/{CARD_FILE}"
 
 
 async def async_install_frontend_resource(hass: HomeAssistant):
@@ -72,36 +78,74 @@ async def async_install_frontend_resource(hass: HomeAssistant):
     # Offload the blocking file operations to the executor thread
     await hass.async_add_executor_job(install)
 
+def _is_card_resource(url: str) -> bool:
+    """Return True if a Lovelace resource URL points at our card.
+
+    Only the file name is compared. HACS served the card from /hacsfiles/...,
+    while the HA 2026.11 Marketplace serves it from /local/community/... and
+    rewrites existing entries in place, keeping their ID. Comparing the full URL
+    misses the rewritten entry, so a duplicate was added on every restart.
+    """
+    return url.split("?")[0].endswith(f"/{CARD_FILE}")
+
+
 async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
-    """Register the custom card as a Lovelace resource."""
+    """Register the custom card as a Lovelace resource, exactly once."""
     lovelace_data = hass.data.get("lovelace")
     if not lovelace_data:
         _LOGGER.debug("Unable to get lovelace data (new api 2026.2)")
-        return  # YAML mode or Lovelace not loaded
+        return  # Lovelace not loaded
 
     resources = lovelace_data.resources
     if not resources:
         _LOGGER.debug("Unable to get resources (new api 2026.2)")
-        return  # YAML mode or not loaded
+        return  # not loaded
 
-    if not resources.loaded:
+    if not getattr(resources, "loaded", True):
         await resources.async_load()
 
-    card_url = "/hacsfiles/switch_port_card_pro_card/switch-port-card-pro.js"
-    # Or local: f"/local/custom_cards/{DOMAIN}-card.js"
+    existing = [
+        item for item in resources.async_items()
+        if _is_card_resource(item.get("url", ""))
+    ]
 
-    # Check if already registered
-    for item in resources.async_items():
-        if item["url"] == card_url:
-            _LOGGER.debug("Card already registered: %s", card_url)
-            return  # already there
+    # In YAML mode the resource collection is read-only.
+    if not hasattr(resources, "async_create_item"):
+        if not existing:
+            _LOGGER.warning(
+                "Lovelace is in YAML mode - add %s to your resources manually", CARD_URL
+            )
+        return
 
-    await resources.async_create_item({
-        "res_type": "module",
-        "url": card_url,
-    })
-    _LOGGER.debug("Card registered: %s", card_url)
-    
+    if existing:
+        # Clear up duplicates left behind by earlier versions, keeping the first.
+        for duplicate in existing[1:]:
+            item_id = duplicate.get("id")
+            if not item_id:
+                continue
+            try:
+                await resources.async_delete_item(item_id)
+            except (HomeAssistantError, KeyError, ValueError) as err:
+                _LOGGER.debug(
+                    "Could not remove duplicate card resource %s: %s",
+                    duplicate.get("url"), err
+                )
+            else:
+                _LOGGER.info("Removed duplicate card resource: %s", duplicate.get("url"))
+
+        _LOGGER.debug("Card already registered: %s", existing[0].get("url"))
+        return
+
+    try:
+        await resources.async_create_item({
+            "res_type": "module",
+            "url": CARD_URL,
+        })
+    except (HomeAssistantError, KeyError, ValueError) as err:
+        _LOGGER.warning("Could not register card resource %s: %s", CARD_URL, err)
+        return
+    _LOGGER.debug("Card registered: %s", CARD_URL)
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
     if DOMAIN not in hass.data:

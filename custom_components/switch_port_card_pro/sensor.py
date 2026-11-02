@@ -393,9 +393,12 @@ class SwitchPortBaseEntity(SensorEntity):
     
                 # Update device registry entry
                 dev_reg = device_registry.async_get(self.hass)
-                device_entry = dev_reg.async_get_device(
-                        identifiers={(DOMAIN, f"{self.entry_id}_{self.coordinator.host}")}
-                )
+                identifier = (DOMAIN, f"{self.entry_id}_{self.coordinator.host}")
+                if hasattr(dev_reg, "async_get_device_by_identifier"):
+                    # HA 2026.11+: async_get_device is deprecated (breaks in 2027.8)
+                    device_entry = dev_reg.async_get_device_by_identifier(identifier, self.entry_id)
+                else:
+                    device_entry = dev_reg.async_get_device(identifiers={identifier})
                 if device_entry:
                     dev_reg.async_update_device(
                     device_entry.id,

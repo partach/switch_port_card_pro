@@ -1265,11 +1265,19 @@ class SwitchPortCardProEditor extends HTMLElement {
   }
 }
 
-customElements.define("switch-port-card-pro", SwitchPortCardPro);
-customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
+// Guard the registrations: if the card is served from two resource URLs the
+// module is evaluated twice, and a bare define() throws
+// "the name ... has already been used", breaking the second load.
+if (!customElements.get("switch-port-card-pro")) {
+  customElements.define("switch-port-card-pro", SwitchPortCardPro);
+}
+if (!customElements.get("switch-port-card-pro-editor")) {
+  customElements.define("switch-port-card-pro-editor", SwitchPortCardProEditor);
+}
 
 (function () {
   window.customCards = window.customCards || [];
+  if (window.customCards.some((card) => card.type === "switch-port-card-pro")) return;
   window.customCards.push({
     type: "switch-port-card-pro",
     name: "Switch Port Card Pro",
