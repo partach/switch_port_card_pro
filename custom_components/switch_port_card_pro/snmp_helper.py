@@ -215,6 +215,14 @@ async def async_snmp_walk(
                     # Double-check we are still in the tree
                     if not oid_str.startswith(base_oid):
                         return results
+                    # With ignoreNonIncreasingOid an agent that hands back an OID
+                    # it already sent would keep the walk going forever.
+                    if oid_str in results:
+                        _LOGGER.debug(
+                            "SNMP WALK on %s (oid=%s) returned %s again; stopping",
+                            host, base_oid, oid_str,
+                        )
+                        return results
                     results[oid_str] = value.prettyPrint()
         except asyncio.CancelledError:
             raise

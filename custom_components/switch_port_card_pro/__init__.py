@@ -1,6 +1,7 @@
 """Switch Port Card Pro integration - __init__.py"""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
@@ -40,6 +41,11 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 # so /local/community resolves with or without HACS / the Marketplace.
 CARD_FILE = "switch-port-card-pro.js"
 CARD_URL = f"/local/community/switch_port_card_pro_card/{CARD_FILE}"
+
+# Home Assistant cancels config entry setups still running when its startup
+# stage times out (300 s for all integrations together). Port discovery is
+# best-effort, so cap it and fall back to the configured ports instead.
+DISCOVERY_TIMEOUT = 60
 
 
 async def async_install_frontend_resource(hass: HomeAssistant):
@@ -169,7 +175,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     is_first_install = CONF_PORTS not in entry.options
     
     try:
-        detected = await discover_physical_ports(hass, host, community, snmp_port, mp_model)
+        async with asyncio.timeout(DISCOVERY_TIMEOUT):
+            detected = await discover_physical_ports(hass, host, community, snmp_port, mp_model)
         if detected:
             # --- EXTRACT METADATA ---
             # Get a sample port to pull device-wide info (all ports share the same device info)
@@ -192,6 +199,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         else:
             _LOGGER.debug("Port detection returned no results on %s", host)
+    except TimeoutError:
+        _LOGGER.warning(
+            "Port detection on %s did not finish within %d seconds; "
+            "using the configured ports instead",
+            host, DISCOVERY_TIMEOUT,
+        )
+        detected = None
     except Exception as err:  # noqa: BLE001 - detection is best-effort; falls back to manual config
         _LOGGER.debug("Port detection failed on %s: %s (will use manual config)", host, err)
         detected = None
