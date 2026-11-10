@@ -6,9 +6,28 @@
         "description": "Konfiguriere deinen SNMP-fähigen Netzwerk-Switch",
         "data": {
           "host": "IP-Adresse oder Hostname des Switches",
-          "community": "SNMP-Community-String"
+          "community": "SNMP-Community-String",
+          "snmp_port": "SNMP-Port"
+        }
+      },
+      "reconfigure": {
+        "title": "Switch-Verbindung ändern",
+        "description": "Adresse, SNMP-Community oder SNMP-Port dieses Switches ändern. Entitäten und Verlauf bleiben erhalten.",
+        "data": {
+          "host": "IP-Adresse oder Hostname des Switches",
+          "community": "SNMP-Community-String",
+          "snmp_port": "SNMP-Port"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Keine SNMP-Antwort vom Switch. Prüfe Adresse, Community, Port und SNMP-Version.",
+      "invalid_community": "Ungültige SNMP-Community",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Dieser Switch ist bereits eingerichtet",
+      "reconfigure_successful": "Die Switch-Verbindung wurde aktualisiert"
     }
   },
   "options": {

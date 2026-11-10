@@ -8,7 +8,7 @@ import voluptuous as vol
 
 # import homeassistant.helpers.selector as selector
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_SNMP_PORT,
     DEFAULT_SYSTEM_OIDS,
     DOMAIN,
+    SNMP_VERSION_TO_MP_MODEL,
 )
 from .snmp_helper import async_snmp_get
 
@@ -105,6 +106,75 @@ class SwitchPortCardProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_SCHEMA,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Change the switch's address, community or SNMP port."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+
+            # The host is the unique ID: refuse one another entry already uses.
+            for other in self._async_current_entries(include_ignore=False):
+                if other.entry_id != entry.entry_id and other.unique_id == host.lower():
+                    return self.async_abort(reason="already_configured")
+
+            mp_model = SNMP_VERSION_TO_MP_MODEL.get(entry.options.get("snmp_version", "v2c"), 1)
+            sys_name = await async_snmp_get(
+                self.hass,
+                host,
+                user_input[CONF_COMMUNITY],
+                user_input[CONF_SNMP_PORT],
+                CONF_OID_SYSNAME,
+                timeout=5,
+                retries=2,
+                mp_model=mp_model,
+            )
+            if sys_name is None:
+                errors["base"] = "cannot_connect"
+            else:
+                old_host = entry.data[CONF_HOST]
+                changed = self.hass.config_entries.async_update_entry(
+                    entry,
+                    # Keep a title the user renamed; follow the host otherwise.
+                    title=host if entry.title == old_host else entry.title,
+                    unique_id=host.lower(),
+                    data={
+                        **entry.data,
+                        CONF_HOST: host,
+                        CONF_COMMUNITY: user_input[CONF_COMMUNITY],
+                        CONF_SNMP_PORT: user_input[CONF_SNMP_PORT],
+                    },
+                )
+                # A loaded entry reloads through its update listener. One that
+                # failed to set up (e.g. the old address is unreachable) has no
+                # listener, so reload it here.
+                if entry.state is not ConfigEntryState.LOADED or not changed:
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(entry.entry_id)
+                    )
+                return self.async_abort(reason="reconfigure_successful")
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
+                vol.Required(
+                    CONF_COMMUNITY, default=entry.data.get(CONF_COMMUNITY, "public")
+                ): str,
+                vol.Required(
+                    CONF_SNMP_PORT,
+                    default=entry.data.get(CONF_SNMP_PORT, DEFAULT_SNMP_PORT),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
             errors=errors,
         )
 

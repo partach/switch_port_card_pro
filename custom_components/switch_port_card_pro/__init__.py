@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import shutil
 from datetime import timedelta
 
@@ -12,6 +13,8 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_COMMUNITY,
@@ -152,6 +155,44 @@ async def async_register_card(hass: HomeAssistant, entry: ConfigEntry):
         return
     _LOGGER.debug("Card registered: %s", CARD_URL)
 
+def _migrate_host_ids(hass: HomeAssistant, entry: ConfigEntry, host: str) -> None:
+    """Keep the device and port sensors when the switch's address changes.
+
+    Their IDs embed the host. Rewrite IDs that still carry an earlier host, so
+    history and dashboards stay attached instead of new entities being created
+    next to orphaned ones.
+    """
+    prefix = f"{entry.entry_id}_"
+    port_re = re.compile(rf"^{re.escape(prefix)}(.+)_port_(\d+)_status$")
+
+    ent_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        m = port_re.match(reg_entry.unique_id)
+        if not m or m.group(1) == host:
+            continue
+        new_id = f"{prefix}{host}_port_{m.group(2)}_status"
+        if ent_reg.async_get_entity_id(reg_entry.domain, DOMAIN, new_id):
+            continue  # an entity for the new host exists already; leave both
+        ent_reg.async_update_entity(reg_entry.entity_id, new_unique_id=new_id)
+        _LOGGER.info("Moved %s to host %s", reg_entry.entity_id, host)
+
+    dev_reg = dr.async_get(hass)
+    new_ident = (DOMAIN, f"{prefix}{host}")
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        old = {
+            ident for ident in device.identifiers
+            if ident[0] == DOMAIN and ident[1].startswith(prefix) and ident != new_ident
+        }
+        if not old or new_ident in device.identifiers:
+            continue
+        try:
+            dev_reg.async_update_device(
+                device.id, new_identifiers=(device.identifiers - old) | {new_ident}
+            )
+        except HomeAssistantError as err:
+            _LOGGER.warning("Could not move device %s to host %s: %s", device.id, host, err)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Switch Port Card Pro from a config entry."""
     if DOMAIN not in hass.data:
@@ -164,7 +205,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     update_seconds = max(3, entry.options.get("update_interval", 20))
     include_vlans = entry.options.get(CONF_INCLUDE_VLANS, True)
     snmp_version = entry.options.get("snmp_version", "v2c")
-    snmp_port = entry.options.get(CONF_SNMP_PORT, DEFAULT_SNMP_PORT)
+    # The config flow stores the SNMP port in data; options never held it.
+    snmp_port = entry.options.get(CONF_SNMP_PORT, entry.data.get(CONF_SNMP_PORT, DEFAULT_SNMP_PORT))
     mp_model = SNMP_VERSION_TO_MP_MODEL.get(snmp_version, 1)
 
     # === PORT DISCOVERY WITH SMART FALLBACK ===
@@ -340,6 +382,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "uptime": entry.options.get("oid_uptime", DEFAULT_SYSTEM_OIDS.get("uptime", "")),
         "custom": entry.options.get("oid_custom", DEFAULT_SYSTEM_OIDS.get("custom", "")),
     }
+
+    _migrate_host_ids(hass, entry, host)
 
     # Create coordinator
     coordinator = SwitchPortCoordinator(
