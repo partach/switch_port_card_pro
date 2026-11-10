@@ -6,9 +6,28 @@
         "description": "Configureer je SNMP-switch",
         "data": {
           "host": "IP-adres of hostname van de switch",
-          "community": "SNMP Community-string"
+          "community": "SNMP Community-string",
+          "snmp_port": "SNMP-poort"
+        }
+      },
+      "reconfigure": {
+        "title": "Switchverbinding wijzigen",
+        "description": "Wijzig het adres, de SNMP-community of de SNMP-poort van deze switch. Entiteiten en historie blijven behouden.",
+        "data": {
+          "host": "IP-adres of hostname van de switch",
+          "community": "SNMP Community-string",
+          "snmp_port": "SNMP-poort"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Geen SNMP-antwoord van de switch. Controleer adres, community, poort en SNMP-versie.",
+      "invalid_community": "Ongeldige SNMP-community",
+      "unknown": "Onverwachte fout"
+    },
+    "abort": {
+      "already_configured": "Deze switch is al ingesteld",
+      "reconfigure_successful": "De switchverbinding is bijgewerkt"
     }
   },
   "options": {
