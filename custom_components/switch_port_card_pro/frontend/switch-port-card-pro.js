@@ -328,6 +328,9 @@ class SwitchPortCardPro extends HTMLElement {
           justify-content: center;
         }
         .port.off{background:var(--disabled-background-color);opacity:0.95;color:var(--secondary-text-color);}
+        .port.on-100g   { background: var(--switch-port-100g-color, #6a1b9a); color: white; }
+        .port.on-40g    { background: var(--switch-port-40g-color, #4527a0); color: white; }
+        .port.on-25g    { background: var(--switch-port-25g-color, #283593); color: white; }
         .port.on-10g    { background: var(--switch-port-10g-color, #1e88e5); color: white; }
         .port.on-5g     { background: var(--switch-port-5g-color, #1565c0); color: white;}
         .port.on-2_5g   { background: var(--switch-port-2_5g-color, #1976d2); color: white;}
@@ -842,7 +845,10 @@ class SwitchPortCardPro extends HTMLElement {
 
           switch (this._config.color_scheme || "speed") {
             case "speed":
-              if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
+              if (speedMbps >= 100000) { speedClass = "on-100g"; speedText = `${Math.round(speedMbps / 1000)}G`; }
+              else if (speedMbps >= 40000) { speedClass = "on-40g"; speedText = `${Math.round(speedMbps / 1000)}G`; }
+              else if (speedMbps >= 25000) { speedClass = "on-25g"; speedText = `${Math.round(speedMbps / 1000)}G`; }
+              else if (speedMbps >= 10000) { speedClass = "on-10g"; speedText = "10G"; }
               else if (speedMbps >= 5000) { speedClass = "on-5g"; speedText = "5G"; }
               else if (speedMbps >= 2500) { speedClass = "on-2_5g"; speedText = "2.5G"; }
               else if (speedMbps >= 1000) { speedClass = "on-1g"; speedText = "1G"; }
