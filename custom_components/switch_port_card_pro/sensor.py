@@ -29,6 +29,8 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import (
+    CONF_OID_IFHIGHSPEED,
+    CONF_OID_IFSPEED,
     DOMAIN,
     SNMP_VERSION_TO_MP_MODEL,
 )
@@ -47,6 +49,17 @@ _MEMORY_USED_FREE_PAIRS = {
     "1.3.6.1.4.1.9.9.109.1.1.1.1.12.": "1.3.6.1.4.1.9.9.109.1.1.1.1.13.",  # cpmCPUMemoryUsed / Free (KB)
     "1.3.6.1.4.1.9.9.109.1.1.1.1.17.": "1.3.6.1.4.1.9.9.109.1.1.1.1.19.",  # cpmCPUMemoryHCUsed / HCFree (KB)
 }
+
+# ifSpeed (bps, Gauge32) cannot go above ~4.29 Gbps. RFC 2863: faster interfaces
+# report the maximum there and their real speed in ifHighSpeed (Mbps); some
+# agents (e.g. MikroTik SwOS on SFP+) report 0 instead.
+_IFSPEED_MAX = 4294967295
+
+
+def _oid_is(oid: str, base: str) -> bool:
+    """Return True if oid is base or a column/instance below it."""
+    return oid == base or oid.startswith(base + ".")
+
 
 # POWER-ETHERNET-MIB pethPsePortDetectionStatus: 3 = deliveringPower
 _PETH_DETECTION_STATUS_OID = "1.3.6.1.2.1.105.1.1.1.6"
@@ -112,6 +125,9 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         self.port_mapping = {}
         self.update_seconds = update_seconds
         self._last_total_bytes = 0
+        # None until we know whether the switch serves ifHighSpeed (ifXTable);
+        # old switches don't, and are then not asked again.
+        self._high_speed_supported: bool | None = None
 
     def _parse_poe(self, raw: dict[str, str]) -> dict[int, int]:
         """Map PoE table values to ifIndex.
@@ -155,6 +171,45 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         if len(group_port) > legacy_coverage:
             return group_port
         return legacy
+
+    async def _async_high_speed_fallback(
+        self, speed_is_ifspeed: bool, speed: dict[int, int], status: dict[int, int]
+    ) -> dict[int, int]:
+        """Read ifHighSpeed (Mbps) when ifSpeed cannot give an up port's speed.
+
+        Only when the speed OID is ifSpeed and a monitored port that is up
+        reports 0 or the ifSpeed maximum. Ports that already report a speed
+        are left alone, and a switch without ifHighSpeed is not asked again.
+        """
+        if not speed_is_ifspeed or self._high_speed_supported is False:
+            return {}
+        if_indexes = [
+            (self.port_mapping.get(port) or {}).get("if_index", port) for port in self.ports
+        ]
+        if not any(
+            status.get(i) == 1 and speed.get(i) in (0, _IFSPEED_MAX) for i in if_indexes
+        ):
+            return {}
+
+        raw = await async_snmp_walk(
+            self.hass, self.host, self.community, self.snmp_port,
+            CONF_OID_IFHIGHSPEED, mp_model=self.mp_model,
+        )
+        high_speed: dict[int, int] = {}
+        for oid, val in raw.items():
+            try:
+                high_speed[int(oid.split(".")[-1])] = int(val)
+            except (ValueError, IndexError):
+                continue
+
+        if high_speed:
+            self._high_speed_supported = True
+        elif self._high_speed_supported is None and status:
+            # The switch answered the other walks, so an empty ifHighSpeed walk
+            # means it has no ifXTable (old switch or SNMPv1 agent without it).
+            self._high_speed_supported = False
+            _LOGGER.debug("%s has no ifHighSpeed; using ifSpeed only", self.host)
+        return high_speed
 
     async def _memory_percent(self, used_raw: Any) -> Any:
         """Turn a Cisco 'memory used' value into a percentage using the matching 'free' OID."""
@@ -225,6 +280,11 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
             poe_status = self._parse_poe(walk_map.get("poe_status", {}))
             port_custom = parse(walk_map.get("port_custom", {}))
 
+            speed_oid = (self.base_oids.get("speed") or "").strip().strip(".")
+            speed_is_ifspeed = _oid_is(speed_oid, CONF_OID_IFSPEED)
+            speed_is_mbps = _oid_is(speed_oid, CONF_OID_IFHIGHSPEED)
+            high_speed = await self._async_high_speed_fallback(speed_is_ifspeed, speed, status)
+
             ports_data: dict[str, dict[str, Any]] = {}
             total_rx = total_tx = total_poe_mw = 0
 
@@ -252,7 +312,15 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
                     or if_index in poe_status
                 ):
                     HighLowSpeed = speed.get(if_index, 0)
-                    if HighLowSpeed < 100000: # check if we use the 32 or 64 bit variant
+                    if speed_is_mbps:
+                        HighLowSpeed = HighLowSpeed * 1000000  # ifHighSpeed is in Mbps
+                    elif (
+                        speed_is_ifspeed
+                        and HighLowSpeed in (0, _IFSPEED_MAX)
+                        and high_speed.get(if_index, 0) > 0
+                    ):
+                        HighLowSpeed = high_speed[if_index] * 1000000
+                    elif HighLowSpeed < 100000: # check if we use the 32 or 64 bit variant
                         HighLowSpeed = HighLowSpeed * 1000000 # convert to bps
                     ports_data[p].update({
                         "status": "on" if status.get(if_index, 2) == 1 else "off",

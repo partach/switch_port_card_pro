@@ -34,7 +34,7 @@ The integration uses baseoids that you can configure on the fly and has default 
 ## Features (Integration + Card)
 - No entities have to be set manually for SNMP!
 - Supports multiple hubs (switch instances). You can monitor your whole switch farm from one dashboard
-- Indication of `10M`, `100M`, `1G`, `2.5G`, `5G` `10G`, `DOWN`
+- Indication of `10M`, `100M`, `1G`, `2.5G`, `5G`, `10G`, `25G`, `40G`, `100G`, `DOWN`
 - Fully configurable UI to show the information per port as you want it.
 - Automatic detection of number of available ports (if standard oid is honored by network Switch)
 - Visible vlan tagging (ports show to which VLAN they belong)
@@ -155,7 +155,7 @@ For the 'port oid's' the integration will walk these oid's (meaning the sw puts 
 | –     | `sensor.switch_192_168_1_1_uptime`     | `state`                | The up time of the switch                     | `1.3.6.1.2.1.1.3.0`  |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `port_name`            | Port description / name              | `1.3.6.1.2.1.31.1.1.1.18`        |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `status`               | Link state (up/down)                 | `1.3.6.1.2.1.2.2.1.8`             |
-| x     | `sensor.switch_192_168_1_1_port_x_status`   | `speed_bps`            | Current link speed in bps            | `1.3.6.1.2.1.2.2.1.5`  (32 bit)  `1.3.6.1.2.1.31.1.1.1.15`  (64 bit) |  
+| x     | `sensor.switch_192_168_1_1_port_x_status`   | `speed_bps`            | Current link speed in bps (with ifSpeed, ifHighSpeed is read automatically for ports above ~4 Gbps) | `1.3.6.1.2.1.2.2.1.5`  (32 bit)  `1.3.6.1.2.1.31.1.1.1.15`  (64 bit) |  
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `rx_bps_live`          | Real-time RX bandwidth (bps)         | Custom calculation / script         |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `tx_bps_live`          | Real-time TX bandwidth (bps)         | Custom calculation / script         |
 | x     | `sensor.switch_192_168_1_1_port_x_status`   | `poe_enabled`          | PoE enabled on port                  | `1.3.6.1.4.1.<vendor>.poe.x`       |
