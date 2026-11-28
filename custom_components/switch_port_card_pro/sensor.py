@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -54,6 +55,9 @@ _MEMORY_USED_FREE_PAIRS = {
 # report the maximum there and their real speed in ifHighSpeed (Mbps); some
 # agents (e.g. MikroTik SwOS on SFP+) report 0 instead.
 _IFSPEED_MAX = 4294967295
+# Link speeds rarely change; re-read ifHighSpeed at most this often (seconds)
+# unless the set of ports that need it changes.
+_HIGH_SPEED_REFRESH = 3600
 
 
 def _oid_is(oid: str, base: str) -> bool:
@@ -128,6 +132,9 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         # None until we know whether the switch serves ifHighSpeed (ifXTable);
         # old switches don't, and are then not asked again.
         self._high_speed_supported: bool | None = None
+        self._high_speed: dict[int, int] = {}
+        self._high_speed_ports: frozenset[int] = frozenset()
+        self._high_speed_read_at = 0.0
 
     def _parse_poe(self, raw: dict[str, str]) -> dict[int, int]:
         """Map PoE table values to ifIndex.
@@ -178,18 +185,27 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
         """Read ifHighSpeed (Mbps) when ifSpeed cannot give an up port's speed.
 
         Only when the speed OID is ifSpeed and a monitored port that is up
-        reports 0 or the ifSpeed maximum. Ports that already report a speed
-        are left alone, and a switch without ifHighSpeed is not asked again.
+        reports 0 or the ifSpeed maximum. The values are kept and read again
+        only when that set of ports changes or after _HIGH_SPEED_REFRESH, so
+        slow agents (e.g. MikroTik SwOS) get no extra requests on most polls.
+        A switch without ifHighSpeed is not asked again.
         """
         if not speed_is_ifspeed or self._high_speed_supported is False:
             return {}
         if_indexes = [
             (self.port_mapping.get(port) or {}).get("if_index", port) for port in self.ports
         ]
-        if not any(
-            status.get(i) == 1 and speed.get(i) in (0, _IFSPEED_MAX) for i in if_indexes
-        ):
+        needed = frozenset(
+            i for i in if_indexes if status.get(i) == 1 and speed.get(i) in (0, _IFSPEED_MAX)
+        )
+        if not needed:
             return {}
+        if (
+            self._high_speed
+            and needed == self._high_speed_ports
+            and time.monotonic() - self._high_speed_read_at < _HIGH_SPEED_REFRESH
+        ):
+            return self._high_speed
 
         raw = await async_snmp_walk(
             self.hass, self.host, self.community, self.snmp_port,
@@ -204,12 +220,16 @@ class SwitchPortCoordinator(DataUpdateCoordinator[SwitchPortData]):
 
         if high_speed:
             self._high_speed_supported = True
+            self._high_speed = high_speed
+            self._high_speed_ports = needed
+            self._high_speed_read_at = time.monotonic()
         elif self._high_speed_supported is None and status:
             # The switch answered the other walks, so an empty ifHighSpeed walk
             # means it has no ifXTable (old switch or SNMPv1 agent without it).
             self._high_speed_supported = False
             _LOGGER.debug("%s has no ifHighSpeed; using ifSpeed only", self.host)
-        return high_speed
+        # A failed re-read keeps the last values; it is retried next poll.
+        return self._high_speed
 
     async def _memory_percent(self, used_raw: Any) -> Any:
         """Turn a Cisco 'memory used' value into a percentage using the matching 'free' OID."""

@@ -35,7 +35,7 @@ STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_COMMUNITY, default="public"): str,
-        vol.Required(CONF_SNMP_PORT,DEFAULT_SNMP_PORT): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
+        vol.Required(CONF_SNMP_PORT, default=DEFAULT_SNMP_PORT): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
     }
 )
 
